@@ -27,6 +27,13 @@ Optional:
 - `GA4_PROPERTY_ID`
 - `GA4_TOKEN_JSON`
 
+Optional repository variables:
+
+- `SITE_URL`, default `https://thermalmaster.com/`
+- `DATA_DELAY_DAYS`, default `3`
+- `BITABLE_TOP_QUERIES`, default `100`
+- `BITABLE_TOP_PAGES`, default `100`
+
 If GitHub has trouble accepting raw JSON, use base64 secrets instead:
 
 - `GSC_CLIENT_SECRET_JSON_B64`

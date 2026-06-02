@@ -94,6 +94,8 @@ jobs:
         env:
           SITE_URL: ${{ vars.SITE_URL || 'https://thermalmaster.com/' }}
           DATA_DELAY_DAYS: ${{ vars.DATA_DELAY_DAYS || '3' }}
+          BITABLE_TOP_QUERIES: ${{ vars.BITABLE_TOP_QUERIES || '100' }}
+          BITABLE_TOP_PAGES: ${{ vars.BITABLE_TOP_PAGES || '100' }}
           FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
           FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
           FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}

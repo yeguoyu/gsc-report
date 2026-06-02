@@ -38,6 +38,10 @@ Optional repository variables:
 - `SEARCH_APPEARANCE_LIMIT`, default `1000`
 - `BITABLE_TOP_QUERIES`, default `100`
 - `BITABLE_TOP_PAGES`, default `100`
+- `SEO_OPPORTUNITY_LIMIT`, default `12`
+- `BRAND_TERMS`, comma-separated brand query rules
+- `BRAND_PRODUCT_TERMS`, comma-separated product/model words inside brand queries
+- `CORE_COUNTRIES`, comma-separated ISO country codes for priority markets
 
 If GitHub has trouble accepting raw JSON, use base64 secrets instead:
 
@@ -71,3 +75,12 @@ git push -u origin main
 
 Do not commit `config.py`, `token.json`, `token_ga4.json`, or
 `client_secret.json`. They are intentionally ignored.
+
+## SEO operations dashboard
+
+Weekly and monthly HTML reports now include:
+
+- Brand / brand-product / non-brand query split.
+- Shopify URL page-type split: product, collection, blog, page, policy, cart, search, account, home, and other.
+- Core-country performance using the default priority markets: United States, Germany, Japan, Norway, United Kingdom, France, Italy, Spain, Netherlands, Sweden, Finland, Denmark, Switzerland, Austria, Belgium, Poland, Portugal, Ireland, Czechia, and Hungary.
+- SEO opportunity pool for low CTR, ranking push, product CTR, and blog internal-link opportunities.

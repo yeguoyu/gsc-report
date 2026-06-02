@@ -6,8 +6,10 @@ HTML 报告生成器 v3
 
 import os
 import json
+import html
 from datetime import datetime
 import config
+from seo_ops import build_seo_ops_summary
 
 
 def generate_html_report(data):
@@ -52,6 +54,186 @@ def _change_badge_abs(val, reverse=False):
     if (val > 0 and not reverse) or (val < 0 and reverse):
         return f'<span class="badge up">↑ {abs(val)}</span>'
     return f'<span class="badge down">↓ {abs(val)}</span>'
+
+
+def _esc(value):
+    if value is None:
+        return ""
+    return html.escape(str(value), quote=True)
+
+
+def _fmt_pct(value):
+    return f"{float(value or 0) * 100:.2f}%"
+
+
+def _summary_metric(summary, key, field):
+    return summary.get(key, {}).get(field, 0) or 0
+
+
+def _build_ops_html(data):
+    summary = data.get('seo_ops') or build_seo_ops_summary(data)
+    brand = summary.get('brand', {})
+    page_types = summary.get('page_types', {})
+    core = summary.get('core_countries', {})
+    opportunities = summary.get('opportunities', [])
+
+    brand_clicks = (
+        _summary_metric(brand, 'Brand', 'clicks')
+        + _summary_metric(brand, 'Brand Product', 'clicks')
+    )
+    nonbrand_clicks = _summary_metric(brand, 'Non-brand', 'clicks')
+    total_keyword_clicks = brand_clicks + nonbrand_clicks
+    nonbrand_share = nonbrand_clicks / total_keyword_clicks if total_keyword_clicks else 0
+    brand_product_clicks = _summary_metric(brand, 'Brand Product', 'clicks')
+
+    product_clicks = _summary_metric(page_types, 'Product', 'clicks')
+    product_impressions = _summary_metric(page_types, 'Product', 'impressions')
+    core_clicks = _summary_metric(core, 'Core', 'clicks')
+    all_geo_clicks = core_clicks + _summary_metric(core, 'Other', 'clicks')
+    core_share = core_clicks / all_geo_clicks if all_geo_clicks else 0
+
+    segment_rows = ""
+    for name in ['Non-brand', 'Brand Product', 'Brand']:
+        item = brand.get(name, {})
+        if not item:
+            continue
+        segment_rows += f'''<tr>
+            <td class="kw">{_esc(name)}</td>
+            <td class="val">{item.get('clicks', 0):,}</td>
+            <td class="val">{item.get('impressions', 0):,}</td>
+            <td class="val">{_fmt_pct(item.get('ctr', 0))}</td>
+            <td class="val">{item.get('position', 0):.1f}</td>
+            <td class="val">{item.get('rows', 0):,}</td>
+        </tr>'''
+    if not segment_rows:
+        segment_rows = '<tr><td colspan="6" class="ops-empty">No keyword segment data.</td></tr>'
+
+    page_type_rows = ""
+    for name, item in sorted(page_types.items(), key=lambda kv: kv[1].get('clicks', 0), reverse=True):
+        page_type_rows += f'''<tr>
+            <td class="kw">{_esc(name)}</td>
+            <td class="val">{item.get('clicks', 0):,}</td>
+            <td class="val">{item.get('impressions', 0):,}</td>
+            <td class="val">{_fmt_pct(item.get('ctr', 0))}</td>
+            <td class="val">{item.get('position', 0):.1f}</td>
+            <td class="val">{item.get('rows', 0):,}</td>
+        </tr>'''
+    if not page_type_rows:
+        page_type_rows = '<tr><td colspan="6" class="ops-empty">No page type data.</td></tr>'
+
+    core_rows = ""
+    for row in core.get('top_core', []):
+        keys = row.get('keys', [])
+        code = keys[0].upper() if keys else ""
+        core_rows += f'''<tr>
+            <td class="kw">{_esc(code)}</td>
+            <td class="val">{row.get('clicks', 0):,}</td>
+            <td class="val">{row.get('impressions', 0):,}</td>
+            <td class="val">{_fmt_pct(row.get('ctr', 0))}</td>
+            <td class="val">{row.get('position', 0):.1f}</td>
+        </tr>'''
+    if not core_rows:
+        core_rows = '<tr><td colspan="5" class="ops-empty">No core country data.</td></tr>'
+
+    opportunity_rows = ""
+    for i, op in enumerate(opportunities, 1):
+        priority = op.get('priority', '')
+        priority_cls = 'down' if priority == 'High' else ('up' if priority == 'Low' else '')
+        query = op.get('query') or '-'
+        page = op.get('short_url') or op.get('url') or '-'
+        opportunity_rows += f'''<tr>
+            <td class="num">{i}</td>
+            <td><span class="badge neutral">{_esc(op.get('type', ''))}</span></td>
+            <td class="chg {priority_cls}">{_esc(priority)}</td>
+            <td class="kw">{_esc(query)}</td>
+            <td class="pg" title="{_esc(op.get('url', ''))}">{_esc(page)}</td>
+            <td class="val">{_esc(op.get('page_type', ''))}</td>
+            <td class="val">{op.get('impressions', 0):,}</td>
+            <td class="val">{_fmt_pct(op.get('ctr', 0))}</td>
+            <td class="val">{op.get('position', 0):.1f}</td>
+            <td class="val">{op.get('opportunity_clicks', 0):,}</td>
+            <td class="pg">{_esc(op.get('action', ''))}</td>
+        </tr>'''
+    if not opportunity_rows:
+        opportunity_rows = '<tr><td colspan="11" class="ops-empty">No SEO opportunities matched current thresholds.</td></tr>'
+
+    return f'''
+    <div class="card">
+        <div class="card-title"><span class="icon">SEO</span> SEO Operations Snapshot</div>
+        <div class="ops-grid">
+            <div class="ops-metric">
+                <div class="ops-label">Non-brand Share</div>
+                <div class="ops-value">{_fmt_pct(nonbrand_share)}</div>
+                <div class="ops-note">{nonbrand_clicks:,} non-brand clicks</div>
+            </div>
+            <div class="ops-metric">
+                <div class="ops-label">Brand Product Clicks</div>
+                <div class="ops-value">{brand_product_clicks:,}</div>
+                <div class="ops-note">Brand terms with model intent</div>
+            </div>
+            <div class="ops-metric">
+                <div class="ops-label">Product Page Clicks</div>
+                <div class="ops-value">{product_clicks:,}</div>
+                <div class="ops-note">{product_impressions:,} product impressions</div>
+            </div>
+            <div class="ops-metric">
+                <div class="ops-label">Core-country Share</div>
+                <div class="ops-value">{_fmt_pct(core_share)}</div>
+                <div class="ops-note">{core_clicks:,} clicks from target markets</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row-2">
+        <div class="card">
+            <div class="card-title"><span class="icon">KW</span> Keyword Segments</div>
+            <div class="tbl-wrap">
+            <table>
+                <thead><tr>
+                    <th>Segment</th><th>Clicks</th><th>Impr.</th><th>CTR</th><th>Pos.</th><th>Rows</th>
+                </tr></thead>
+                <tbody>{segment_rows}</tbody>
+            </table>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title"><span class="icon">GEO</span> Core Country Top</div>
+            <div class="tbl-wrap">
+            <table>
+                <thead><tr>
+                    <th>Country</th><th>Clicks</th><th>Impr.</th><th>CTR</th><th>Pos.</th>
+                </tr></thead>
+                <tbody>{core_rows}</tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">OPS</span> SEO Opportunity Pool</div>
+        <div class="tbl-wrap">
+        <table>
+            <thead><tr>
+                <th>#</th><th>Type</th><th>Priority</th><th>Query</th><th>Page</th>
+                <th>Page Type</th><th>Impr.</th><th>CTR</th><th>Pos.</th><th>Opp. Clicks</th><th>Action</th>
+            </tr></thead>
+            <tbody>{opportunity_rows}</tbody>
+        </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">URL</span> Shopify Page Types</div>
+        <div class="tbl-wrap">
+        <table>
+            <thead><tr>
+                <th>Page Type</th><th>Clicks</th><th>Impr.</th><th>CTR</th><th>Pos.</th><th>Rows</th>
+            </tr></thead>
+            <tbody>{page_type_rows}</tbody>
+        </table>
+        </div>
+    </div>
+    '''
 
 
 def _build_full_html(data):
@@ -185,6 +367,7 @@ def _build_full_html(data):
 
     # --- SEO 诊断 ---
     diagnostics_html = _build_diagnostics_html(data.get('diagnostics', []), report_type)
+    seo_ops_html = _build_ops_html(data)
 
     return f'''<!DOCTYPE html>
 <html lang="zh-CN">
@@ -287,6 +470,17 @@ body {{
 .card-title .icon {{ font-size: 20px; }}
 .row-2 {{ display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }}
 .row-2-wide {{ display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }}
+.ops-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }}
+.ops-metric {{
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+}}
+.ops-label {{ font-size: 11px; color: var(--text-dim); font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }}
+.ops-value {{ margin-top: 8px; font-size: 24px; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent-cyan); }}
+.ops-note {{ margin-top: 4px; font-size: 12px; color: var(--text-dim); }}
+.ops-empty {{ text-align: center; color: var(--text-dim); padding: 18px 12px; }}
 
 /* --- Chart --- */
 .chart-box {{ position: relative; height: 280px; }}
@@ -385,7 +579,7 @@ tr:hover {{ background: rgba(255,255,255,0.015); }}
 
 @media (max-width: 768px) {{
     .kpi-grid {{ grid-template-columns: repeat(2, 1fr); }}
-    .row-2, .row-2-wide {{ grid-template-columns: 1fr; }}
+    .row-2, .row-2-wide, .ops-grid {{ grid-template-columns: 1fr; }}
     .header {{ padding: 24px; }}
     .kpi-value {{ font-size: 22px; }}
 }}
@@ -440,6 +634,7 @@ tr:hover {{ background: rgba(255,255,255,0.015); }}
     </div>
     
     {geo_optimization_html}
+    {seo_ops_html}
 
     <div class="row-2-wide">
         <div class="card">

@@ -11,6 +11,7 @@ import config
 from gsc_client import collect_all_data, calc_totals
 from feishu_push import push_to_feishu
 from seo_diagnostics import run_diagnostics
+from seo_ops import build_seo_ops_summary
 from feishu_bitable import push_to_bitable, get_tenant_access_token, get_table_ids
 from report_generator import generate_html_report
 from feishu_file import upload_and_send
@@ -47,6 +48,8 @@ def run(report_type):
 
     if 'index_issues' in data:
         data['index_issues_summary'] = {k: len(v) for k, v in data['index_issues'].items()}
+
+    data['seo_ops'] = build_seo_ops_summary(data)
 
     # 3. SEO 诊断
     print("[STEP 3/5] SEO 深度诊断分析...")

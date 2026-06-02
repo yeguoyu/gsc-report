@@ -22,6 +22,13 @@ def _env_int(name, default):
     return int(value)
 
 
+def _env_list(name, default):
+    value = os.getenv(name)
+    if value is None or value == "":
+        return list(default)
+    return [part.strip() for part in value.split(",") if part.strip()]
+
+
 SITE_URL = os.getenv("SITE_URL", "https://thermalmaster.com/")
 
 FEISHU_WEBHOOK = os.getenv("FEISHU_WEBHOOK", "")
@@ -47,6 +54,69 @@ SEARCH_APPEARANCE_LIMIT = _env_int("SEARCH_APPEARANCE_LIMIT", 1000)
 
 BITABLE_TOP_QUERIES = _env_int("BITABLE_TOP_QUERIES", 100)
 BITABLE_TOP_PAGES = _env_int("BITABLE_TOP_PAGES", 100)
+
+BRAND_TERMS = _env_list("BRAND_TERMS", [
+    "thermal master",
+    "thermalmaster",
+    "thermal master p1",
+    "thermal master p2",
+    "thermal master p2 pro",
+    "thermal master p2 app",
+    "thermal master p3",
+    "thermal master nv300",
+    "thermal master nv300 max",
+    "thermal master camera",
+    "thermal master thermal camera",
+    "thermal master t2 max",
+    "thermal master thor",
+    "thermal master thor 001",
+    "thermal master thor 002",
+    "thermal master thor002",
+    "thermal master x3",
+    "thermal master iphone",
+    "thermal master app",
+])
+BRAND_PRODUCT_TERMS = _env_list("BRAND_PRODUCT_TERMS", [
+    "p1",
+    "p2",
+    "p2 pro",
+    "p3",
+    "nv300",
+    "nv300 max",
+    "t2 max",
+    "thor",
+    "thor 001",
+    "thor 002",
+    "thor002",
+    "x3",
+    "camera",
+    "thermal camera",
+    "iphone",
+    "app",
+])
+CORE_COUNTRIES = _env_list("CORE_COUNTRIES", [
+    "usa",
+    "deu",
+    "jpn",
+    "nor",
+    "gbr",
+    "fra",
+    "ita",
+    "esp",
+    "nld",
+    "swe",
+    "fin",
+    "dnk",
+    "che",
+    "aut",
+    "bel",
+    "pol",
+    "prt",
+    "irl",
+    "cze",
+    "hun",
+])
+SEO_OPPORTUNITY_LIMIT = _env_int("SEO_OPPORTUNITY_LIMIT", 12)
 
 NEW_KW_MIN_CLICKS = _env_int("NEW_KW_MIN_CLICKS", 3)
 LOST_KW_MIN_CLICKS = _env_int("LOST_KW_MIN_CLICKS", 3)

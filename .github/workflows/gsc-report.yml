@@ -101,6 +101,10 @@ jobs:
           SEARCH_APPEARANCE_LIMIT: ${{ vars.SEARCH_APPEARANCE_LIMIT || '1000' }}
           BITABLE_TOP_QUERIES: ${{ vars.BITABLE_TOP_QUERIES || '100' }}
           BITABLE_TOP_PAGES: ${{ vars.BITABLE_TOP_PAGES || '100' }}
+          SEO_OPPORTUNITY_LIMIT: ${{ vars.SEO_OPPORTUNITY_LIMIT || '12' }}
+          BRAND_TERMS: ${{ vars.BRAND_TERMS || '' }}
+          BRAND_PRODUCT_TERMS: ${{ vars.BRAND_PRODUCT_TERMS || '' }}
+          CORE_COUNTRIES: ${{ vars.CORE_COUNTRIES || '' }}
           FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
           FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
           FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}

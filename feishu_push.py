@@ -45,7 +45,7 @@ def _cfg(name, default=""):
 
 def _mention(user_id, name):
     if user_id:
-        return f'<at id="{user_id}"></at>'
+        return f'<at user_id="{user_id}">{name}</at>'
     return f'**@{name}**'
 
 

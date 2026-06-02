@@ -42,9 +42,9 @@ Optional repository variables:
 - `BRAND_TERMS`, comma-separated brand query rules
 - `BRAND_PRODUCT_TERMS`, comma-separated product/model words inside brand queries
 - `CORE_COUNTRIES`, comma-separated ISO country codes for priority markets
-- `FEISHU_TECH_AT_ID`, Feishu open_id/user_id for technical fixes
+- `FEISHU_TECH_AT_ID`, Feishu open_id/user_id for technical fixes, preferably an `ou_...` open_id
 - `FEISHU_TECH_AT_NAME`, default `叶国钰`
-- `FEISHU_OPS_AT_ID`, Feishu open_id/user_id for SEO/content/operations
+- `FEISHU_OPS_AT_ID`, Feishu open_id/user_id for SEO/content/operations, preferably an `ou_...` open_id
 - `FEISHU_OPS_AT_NAME`, default `谢佳丽`
 
 If GitHub has trouble accepting raw JSON, use base64 secrets instead:

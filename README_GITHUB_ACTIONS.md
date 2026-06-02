@@ -42,6 +42,10 @@ Optional repository variables:
 - `BRAND_TERMS`, comma-separated brand query rules
 - `BRAND_PRODUCT_TERMS`, comma-separated product/model words inside brand queries
 - `CORE_COUNTRIES`, comma-separated ISO country codes for priority markets
+- `FEISHU_TECH_AT_ID`, Feishu open_id/user_id for technical fixes
+- `FEISHU_TECH_AT_NAME`, default `叶国钰`
+- `FEISHU_OPS_AT_ID`, Feishu open_id/user_id for SEO/content/operations
+- `FEISHU_OPS_AT_NAME`, default `谢佳丽`
 
 If GitHub has trouble accepting raw JSON, use base64 secrets instead:
 
@@ -84,3 +88,12 @@ Weekly and monthly HTML reports now include:
 - Shopify URL page-type split: product, collection, blog, page, policy, cart, search, account, home, and other.
 - Core-country performance using the default priority markets: United States, Germany, Japan, Norway, United Kingdom, France, Italy, Spain, Netherlands, Sweden, Finland, Denmark, Switzerland, Austria, Belgium, Poland, Portugal, Ireland, Czechia, and Hungary.
 - SEO opportunity pool for low CTR, ranking push, product CTR, and blog internal-link opportunities.
+
+## Feishu mentions
+
+The Feishu cards route mentions automatically:
+
+- Technical/code/config/index/performance items mention `FEISHU_TECH_AT_ID`.
+- Other SEO/content/operations items mention `FEISHU_OPS_AT_ID`.
+
+If the ID variables are empty, the card only displays the fallback names and will not trigger a real Feishu mention notification.

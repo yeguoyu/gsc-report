@@ -39,6 +39,51 @@ def _send_webhook(payload, label=""):
     except Exception as e:
         print(f"[ERROR] 飞书推送失败({label}): {e}")
 
+def _cfg(name, default=""):
+    return getattr(config, name, default) or default
+
+
+def _mention(user_id, name):
+    if user_id:
+        return f'<at id="{user_id}"></at>'
+    return f'**@{name}**'
+
+
+def _tech_mention():
+    return _mention(_cfg("FEISHU_TECH_AT_ID"), _cfg("FEISHU_TECH_AT_NAME", "叶国钰"))
+
+
+def _ops_mention():
+    return _mention(_cfg("FEISHU_OPS_AT_ID"), _cfg("FEISHU_OPS_AT_NAME", "谢佳丽"))
+
+
+def _diagnostic_assignee(diagnostic):
+    text = " ".join([
+        str(diagnostic.get("category", "")),
+        str(diagnostic.get("owner", "")),
+        str(diagnostic.get("message", "")),
+    ]).lower()
+    tech_keywords = [
+        "技术", "前端", "schema", "结构化", "robots", "noindex", "404",
+        "canonical", "索引", "移动端", "性能", "searchappearance",
+    ]
+    if any(keyword.lower() in text for keyword in tech_keywords):
+        return "技术", _tech_mention()
+    return "SEO运营", _ops_mention()
+
+
+def _route_summary(diagnostics):
+    tech_count = 0
+    ops_count = 0
+    for item in diagnostics:
+        team, _ = _diagnostic_assignee(item)
+        if team == "技术":
+            tech_count += 1
+        else:
+            ops_count += 1
+    return tech_count, ops_count
+
+
 def build_full_card(data):
     type_map = {
         'daily': ('📊 GSC 日报', 'blue'),
@@ -54,6 +99,15 @@ def build_full_card(data):
     totals = data.get('totals', {})
     prev = data.get('prev_totals', {})
     elements = []
+    diagnostics = data.get('diagnostics', [])
+    tech_count, ops_count = _route_summary(diagnostics)
+    owner_line = (
+        f"**本期跟进人**\n"
+        f"技术修改：{_tech_mention()}（{tech_count} 项）\n"
+        f"SEO/内容/运营：{_ops_mention()}（{ops_count} 项）"
+    )
+    elements.append({"tag": "div", "text": {"tag": "lark_md", "content": owner_line}})
+    elements.append({"tag": "hr"})
 
     countries = data.get('countries', [])
     target_badge_text = ""
@@ -61,7 +115,11 @@ def build_full_card(data):
 
     if countries:
         total_geo_clicks = sum(c.get('clicks', 0) for c in countries)
-        target_markets = {'usa', 'can', 'gbr', 'deu', 'fra', 'ita', 'esp', 'nld'}
+        target_markets = {
+            'usa', 'deu', 'jpn', 'nor', 'gbr', 'fra', 'ita', 'esp', 'nld',
+            'swe', 'fin', 'dnk', 'che', 'aut', 'bel', 'pol', 'prt', 'irl',
+            'cze', 'hun'
+        }
         target_clicks = sum(c.get('clicks', 0) for c in countries if c['keys'][0].lower() in target_markets)
         target_pct = (target_clicks / total_geo_clicks * 100) if total_geo_clicks > 0 else 0
 
@@ -167,8 +225,15 @@ def build_diagnostics_card(data):
     medium_count = sum(1 for d in diagnostics if d.get('severity') == 'medium')
     low_count = sum(1 for d in diagnostics if d.get('severity') == 'low')
     elements = []
+    tech_count, ops_count = _route_summary(diagnostics)
 
-    summary = f"**诊断结果**: 🔴 高优先级 {high_count} 项 | 🟡 中优先级 {medium_count} 项 | 🟢 低优先级 {low_count} 项\n"
+    summary = (
+        f"**诊断概览**\n"
+        f"高优先级：**{high_count}** 项 ｜ 中优先级：**{medium_count}** 项 ｜ 低优先级：**{low_count}** 项\n\n"
+        f"**负责人分配**\n"
+        f"技术修改：{_tech_mention()}（{tech_count} 项）\n"
+        f"SEO/内容/运营：{_ops_mention()}（{ops_count} 项）"
+    )
     elements.append({"tag": "div", "text": {"tag": "lark_md", "content": summary}})
     elements.append({"tag": "hr"})
 
@@ -176,14 +241,16 @@ def build_diagnostics_card(data):
         sev = d.get('severity', 'low')
         sev_icon = {'high': '🔴', 'medium': '🟡', 'low': '🟢'}.get(sev, '⚪')
         sev_label = {'high': '高优先级', 'medium': '中优先级', 'low': '低优先级'}.get(sev, '')
+        team, assignee = _diagnostic_assignee(d)
         content = f"{sev_icon} **[{sev_label}] {d.get('category', '')}**\n\n"
+        content += f"**本项负责人**: {assignee}（{team}）\n\n"
         content += f"**问题**: {d.get('message', '')}\n\n"
         detail = d.get('detail', '')
         if detail:
             content += f"**详情**:\n{detail}\n\n"
         owner = d.get('owner', '')
         if owner:
-            content += f"**👤 负责人**: {owner}\n\n"
+            content += f"**协作角色**: {owner}\n\n"
         actions = d.get('actions', [])
         if actions:
             content += "**🔧 操作步骤**:\n"

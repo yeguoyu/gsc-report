@@ -78,6 +78,10 @@ jobs:
           FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
           FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
           FEISHU_CHAT_ID: ${{ secrets.FEISHU_CHAT_ID }}
+          FEISHU_TECH_AT_ID: ${{ vars.FEISHU_TECH_AT_ID || '' }}
+          FEISHU_TECH_AT_NAME: ${{ vars.FEISHU_TECH_AT_NAME || '叶国钰' }}
+          FEISHU_OPS_AT_ID: ${{ vars.FEISHU_OPS_AT_ID || '' }}
+          FEISHU_OPS_AT_NAME: ${{ vars.FEISHU_OPS_AT_NAME || '谢佳丽' }}
           BITABLE_APP_TOKEN: ${{ secrets.BITABLE_APP_TOKEN }}
           GSC_CLIENT_SECRET_JSON: ${{ secrets.GSC_CLIENT_SECRET_JSON }}
           GSC_CLIENT_SECRET_JSON_B64: ${{ secrets.GSC_CLIENT_SECRET_JSON_B64 }}
@@ -109,6 +113,10 @@ jobs:
           FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
           FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
           FEISHU_CHAT_ID: ${{ secrets.FEISHU_CHAT_ID }}
+          FEISHU_TECH_AT_ID: ${{ vars.FEISHU_TECH_AT_ID || '' }}
+          FEISHU_TECH_AT_NAME: ${{ vars.FEISHU_TECH_AT_NAME || '叶国钰' }}
+          FEISHU_OPS_AT_ID: ${{ vars.FEISHU_OPS_AT_ID || '' }}
+          FEISHU_OPS_AT_NAME: ${{ vars.FEISHU_OPS_AT_NAME || '谢佳丽' }}
           BITABLE_APP_TOKEN: ${{ secrets.BITABLE_APP_TOKEN }}
           GA4_ENABLED: ${{ vars.GA4_ENABLED || 'false' }}
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}

@@ -11,6 +11,172 @@ SEO 深度诊断模块 v5
 import config
 
 
+def _row_key(row, index=0):
+    keys = row.get('keys', [])
+    return keys[index] if len(keys) > index else ''
+
+
+def _short_url(url):
+    return str(url).replace(config.SITE_URL, '/')
+
+
+def _add_query_page_diagnostics(diagnostics, query_pages):
+    by_query = {}
+    for row in query_pages:
+        query = _row_key(row, 0)
+        page = _row_key(row, 1)
+        if not query or not page:
+            continue
+        if row.get('impressions', 0) < 20:
+            continue
+        by_query.setdefault(query, []).append(row)
+
+    cannibalized = []
+    for query, rows in by_query.items():
+        if len(rows) < 2:
+            continue
+        total_clicks = sum(r.get('clicks', 0) for r in rows)
+        total_impressions = sum(r.get('impressions', 0) for r in rows)
+        if total_impressions < 100:
+            continue
+
+        rows_sorted = sorted(rows, key=lambda r: (r.get('clicks', 0), r.get('impressions', 0)), reverse=True)
+        leader = rows_sorted[0]
+        leader_metric = leader.get('clicks', 0) if total_clicks else leader.get('impressions', 0)
+        total_metric = total_clicks if total_clicks else total_impressions
+        leader_share = leader_metric / total_metric if total_metric else 1
+
+        if leader_share < 0.75:
+            cannibalized.append({
+                'query': query,
+                'pages': rows_sorted[:3],
+                'total_clicks': total_clicks,
+                'total_impressions': total_impressions,
+                'leader_share': leader_share,
+            })
+
+    cannibalized.sort(key=lambda x: (x['total_clicks'], x['total_impressions']), reverse=True)
+    if not cannibalized:
+        return
+
+    detail = "这些关键词的点击/展示分散在多个页面，建议确认主排名页，避免内容互相抢排名：\n"
+    for item in cannibalized[:5]:
+        detail += f"\n    - {item['query']} | clicks {item['total_clicks']} | impressions {item['total_impressions']:,} | main share {item['leader_share']:.0%}"
+        for page_row in item['pages']:
+            detail += (
+                f"\n      · {_short_url(_row_key(page_row, 1))}"
+                f" | clicks {page_row.get('clicks', 0)}"
+                f" | impressions {page_row.get('impressions', 0):,}"
+                f" | pos {page_row.get('position', 0):.1f}"
+            )
+
+    diagnostics.append({
+        'severity': 'medium',
+        'category': '关键词页面分流',
+        'message': f'{len(cannibalized)} 个关键词可能存在页面内耗/意图分散',
+        'detail': detail,
+        'owner': 'SEO + 内容团队',
+        'actions': [
+            '为每个关键词指定唯一主页面，并把重复页面合并、canonical 或改成补充长尾意图',
+            '把分流页面的内链锚文本统一指向主页面，减少页面之间互抢排名',
+            '检查主页面标题、H1、首屏内容是否覆盖该关键词的主要搜索意图',
+        ],
+        'expected': '减少页面内耗后，主页面排名和 CTR 通常比新增内容更快见效。',
+    })
+
+
+def _add_country_device_diagnostics(diagnostics, country_devices):
+    target_markets = {'usa', 'can', 'gbr', 'deu', 'fra', 'ita', 'esp', 'nld'}
+    by_country = {}
+    for row in country_devices:
+        country = _row_key(row, 0).lower()
+        device = _row_key(row, 1).upper()
+        if country not in target_markets or device not in {'MOBILE', 'DESKTOP'}:
+            continue
+        by_country.setdefault(country, {})[device] = row
+
+    weak_mobile = []
+    for country, devices in by_country.items():
+        mobile = devices.get('MOBILE')
+        desktop = devices.get('DESKTOP')
+        if not mobile or not desktop:
+            continue
+        if mobile.get('impressions', 0) < 50 or desktop.get('impressions', 0) < 20:
+            continue
+        mobile_ctr = mobile.get('ctr', 0)
+        desktop_ctr = desktop.get('ctr', 0)
+        if desktop_ctr > 0 and mobile_ctr < desktop_ctr * 0.7:
+            weak_mobile.append({
+                'country': country.upper(),
+                'mobile_ctr': mobile_ctr,
+                'desktop_ctr': desktop_ctr,
+                'mobile_clicks': mobile.get('clicks', 0),
+                'mobile_impressions': mobile.get('impressions', 0),
+                'desktop_clicks': desktop.get('clicks', 0),
+                'desktop_impressions': desktop.get('impressions', 0),
+            })
+
+    weak_mobile.sort(key=lambda x: x['mobile_impressions'], reverse=True)
+    if not weak_mobile:
+        return
+
+    detail = "核心市场移动端 CTR 明显弱于桌面端，优先检查移动端标题展示、摘要截断和页面体验：\n"
+    for item in weak_mobile[:6]:
+        detail += (
+            f"\n    - {item['country']} | mobile CTR {item['mobile_ctr']*100:.2f}%"
+            f" vs desktop {item['desktop_ctr']*100:.2f}%"
+            f" | mobile impressions {item['mobile_impressions']:,}"
+        )
+
+    diagnostics.append({
+        'severity': 'medium',
+        'category': '核心市场移动端异常',
+        'message': f'{len(weak_mobile)} 个核心市场移动端 CTR 明显低于桌面端',
+        'detail': detail,
+        'owner': 'SEO + 前端/内容团队',
+        'actions': [
+            '用移动端 SERP 检查标题是否被截断，优先把核心卖点放在标题前 30 个字符',
+            '检查移动端首屏加载和主要内容是否足够快、足够直接',
+            '为核心市场页面补充本地化措辞、价格/配送/使用场景等更强点击理由',
+        ],
+        'expected': '移动端 CTR 修复会直接放大核心市场流量，尤其适合优先处理高展示国家。',
+    })
+
+
+def _add_search_appearance_diagnostics(diagnostics, search_appearance):
+    if not search_appearance:
+        return
+
+    total_clicks = sum(r.get('clicks', 0) for r in search_appearance)
+    total_impressions = sum(r.get('impressions', 0) for r in search_appearance)
+    if total_impressions <= 0:
+        return
+
+    rows = sorted(search_appearance, key=lambda r: r.get('impressions', 0), reverse=True)
+    detail = "当前搜索外观分布：\n"
+    for row in rows[:8]:
+        label = _row_key(row, 0)
+        detail += (
+            f"\n    - {label}: clicks {row.get('clicks', 0)}"
+            f" | impressions {row.get('impressions', 0):,}"
+            f" | CTR {row.get('ctr', 0)*100:.2f}%"
+        )
+
+    diagnostics.append({
+        'severity': 'low',
+        'category': '搜索外观机会',
+        'message': f'已拉取 {len(search_appearance)} 类搜索外观，可用于判断结构化数据机会',
+        'detail': detail,
+        'owner': 'SEO + 技术团队',
+        'actions': [
+            '对产品页补 Product、Review、FAQ 结构化数据，争取更丰富的搜索结果展示',
+            '对教程类内容补 HowTo/FAQ，并观察 searchAppearance 变化',
+            '把搜索外观 CTR 低的类型与普通结果 CTR 对比，判断是否需要改标题摘要',
+        ],
+        'expected': '结构化数据不会保证富结果，但能提高获得富结果和更高 CTR 的概率。',
+    })
+
+
 def run_diagnostics(data):
     """全面 SEO 深度诊断（根据报告类型自动过滤）"""
     report_type = data.get('report_type', 'daily')
@@ -24,9 +190,15 @@ def run_diagnostics(data):
     pages_prev = data.get('pages_prev', [])
     devices = data.get('devices', [])
     countries = data.get('countries', [])
+    query_pages = data.get('query_pages', [])
+    country_devices = data.get('country_devices', [])
+    search_appearance = data.get('search_appearance', [])
 
     prev_q_map = {r['keys'][0]: r for r in queries_prev}
     prev_p_map = {r['keys'][0]: r for r in pages_prev}
+    _add_query_page_diagnostics(diagnostics, query_pages)
+    _add_country_device_diagnostics(diagnostics, country_devices)
+    _add_search_appearance_diagnostics(diagnostics, search_appearance)
 
     # ═══════════════════════════════════════════
     # 1. 流量异常 - 精确到哪些词/页面导致下降

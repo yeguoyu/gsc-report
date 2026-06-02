@@ -31,6 +31,11 @@ Optional repository variables:
 
 - `SITE_URL`, default `https://thermalmaster.com/`
 - `DATA_DELAY_DAYS`, default `3`
+- `GSC_SEARCH_TYPE`, default `web`
+- `GSC_API_PAGE_SIZE`, default `25000`
+- `QUERY_PAGE_LIMIT`, default `2000`
+- `COUNTRY_DEVICE_LIMIT`, default `1000`
+- `SEARCH_APPEARANCE_LIMIT`, default `1000`
 - `BITABLE_TOP_QUERIES`, default `100`
 - `BITABLE_TOP_PAGES`, default `100`
 

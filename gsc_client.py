@@ -21,6 +21,7 @@ SCOPES = [
 ]
 
 _service_cache = None
+SEARCH_ANALYTICS_MAX_PAGE_SIZE = 25000
 
 
 def get_credentials():
@@ -51,23 +52,50 @@ def get_service():
     return _service_cache
 
 
-def fetch_search_analytics(service, start_date, end_date, dimensions, row_limit=1000):
+def fetch_search_analytics(service, start_date, end_date, dimensions, row_limit=1000, search_type=None):
     """
     拉取搜索分析数据
     ⚠️ 必须用小写 searchanalytics()，不能用驼峰 searchAnalytics()
     """
-    body = {
-        'startDate': start_date,
-        'endDate': end_date,
-        'dimensions': dimensions,
-        'rowLimit': row_limit,
-        'startRow': 0
-    }
+    rows = []
+    start_row = 0
+    target_limit = max(0, int(row_limit or 0))
+    page_size_config = getattr(config, 'GSC_API_PAGE_SIZE', SEARCH_ANALYTICS_MAX_PAGE_SIZE)
+    page_size = max(1, min(int(page_size_config), SEARCH_ANALYTICS_MAX_PAGE_SIZE))
+
+    if target_limit == 0:
+        return rows
     try:
-        response = service.searchanalytics().query(
-            siteUrl=config.SITE_URL, body=body
-        ).execute()
-        return response.get('rows', [])
+        while len(rows) < target_limit:
+            current_limit = min(page_size, target_limit - len(rows))
+            body = {
+                'startDate': start_date,
+                'endDate': end_date,
+                'dimensions': dimensions,
+                'rowLimit': current_limit,
+                'startRow': start_row
+            }
+
+            if search_type:
+                body['searchType'] = search_type
+
+            response = service.searchanalytics().query(
+                siteUrl=config.SITE_URL, body=body
+            ).execute()
+            page_rows = response.get('rows', [])
+
+            if not page_rows:
+                break
+
+            rows.extend(page_rows)
+
+            if len(page_rows) < current_limit:
+                break
+
+            start_row += len(page_rows)
+
+        print(f"[INFO] dims={dimensions} fetched {len(rows)} rows")
+        return rows
     except Exception as e:
         print(f"[ERROR] 拉取搜索数据失败 (dims={dimensions}): {e}")
         return []
@@ -144,26 +172,52 @@ def collect_all_data(report_type):
         'prev_end': prev_end,
         'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
     }
+    search_type = getattr(config, 'GSC_SEARCH_TYPE', 'web')
 
     print("[INFO] 拉取按日期汇总数据...")
-    data['daily_trend'] = fetch_search_analytics(service, start_date, end_date, ['date'])
-    data['daily_trend_prev'] = fetch_search_analytics(service, prev_start, prev_end, ['date'])
+    data['daily_trend'] = fetch_search_analytics(service, start_date, end_date, ['date'], search_type=search_type)
+    data['daily_trend_prev'] = fetch_search_analytics(service, prev_start, prev_end, ['date'], search_type=search_type)
 
     print("[INFO] 拉取关键词全量数据...")
     all_queries_limit = getattr(config, 'ALL_QUERIES_LIMIT', 5000)
-    data['queries'] = fetch_search_analytics(service, start_date, end_date, ['query'], row_limit=all_queries_limit)
-    data['queries_prev'] = fetch_search_analytics(service, prev_start, prev_end, ['query'], row_limit=all_queries_limit)
+    data['queries'] = fetch_search_analytics(service, start_date, end_date, ['query'], row_limit=all_queries_limit, search_type=search_type)
+    data['queries_prev'] = fetch_search_analytics(service, prev_start, prev_end, ['query'], row_limit=all_queries_limit, search_type=search_type)
 
     print("[INFO] 拉取页面全量数据...")
     all_pages_limit = getattr(config, 'ALL_PAGES_LIMIT', 2000)
-    data['pages'] = fetch_search_analytics(service, start_date, end_date, ['page'], row_limit=all_pages_limit)
-    data['pages_prev'] = fetch_search_analytics(service, prev_start, prev_end, ['page'], row_limit=all_pages_limit)
+    data['pages'] = fetch_search_analytics(service, start_date, end_date, ['page'], row_limit=all_pages_limit, search_type=search_type)
+    data['pages_prev'] = fetch_search_analytics(service, prev_start, prev_end, ['page'], row_limit=all_pages_limit, search_type=search_type)
 
     print("[INFO] 拉取设备数据...")
-    data['devices'] = fetch_search_analytics(service, start_date, end_date, ['device'])
+    data['devices'] = fetch_search_analytics(service, start_date, end_date, ['device'], search_type=search_type)
 
     print("[INFO] 拉取国家/地区数据...")
-    data['countries'] = fetch_search_analytics(service, start_date, end_date, ['country'], row_limit=config.TOP_COUNTRIES)
+    data['countries'] = fetch_search_analytics(service, start_date, end_date, ['country'], row_limit=config.TOP_COUNTRIES, search_type=search_type)
+
+    print("[INFO] Fetch query-page rows...")
+    query_page_limit = getattr(config, 'QUERY_PAGE_LIMIT', 2000)
+    data['query_pages'] = fetch_search_analytics(service, start_date, end_date, ['query', 'page'], row_limit=query_page_limit, search_type=search_type)
+    data['query_pages_prev'] = fetch_search_analytics(service, prev_start, prev_end, ['query', 'page'], row_limit=query_page_limit, search_type=search_type)
+
+    print("[INFO] Fetch country-device rows...")
+    country_device_limit = getattr(config, 'COUNTRY_DEVICE_LIMIT', 1000)
+    data['country_devices'] = fetch_search_analytics(service, start_date, end_date, ['country', 'device'], row_limit=country_device_limit, search_type=search_type)
+
+    print("[INFO] Fetch search appearance rows...")
+    search_appearance_limit = getattr(config, 'SEARCH_APPEARANCE_LIMIT', 1000)
+    data['search_appearance'] = fetch_search_analytics(service, start_date, end_date, ['searchAppearance'], row_limit=search_appearance_limit, search_type=search_type)
+
+    data['fetch_summary'] = {
+        'search_type': search_type,
+        'queries_rows': len(data.get('queries', [])),
+        'pages_rows': len(data.get('pages', [])),
+        'query_page_rows': len(data.get('query_pages', [])),
+        'country_device_rows': len(data.get('country_devices', [])),
+        'search_appearance_rows': len(data.get('search_appearance', [])),
+        'query_limit': all_queries_limit,
+        'page_limit': all_pages_limit,
+        'query_page_limit': query_page_limit,
+    }
 
     print("[INFO] 拉取索引覆盖数据...")
     data['sitemaps'] = fetch_index_coverage(service)

@@ -1,0 +1,22 @@
+# Local secrets and machine-specific config
+/config.py
+/client_secret.json
+/token.json
+/token_ga4.json
+/.env
+
+# Generated output
+/reports/
+/logs/
+/__pycache__/
+*.py[cod]
+
+# Local archives / old exported versions that may contain secrets
+/v3/
+/v4/
+/v5/
+*.zip
+
+# Tooling caches
+/.pytest_cache/
+/.mypy_cache/

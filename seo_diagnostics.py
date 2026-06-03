@@ -17,76 +17,6 @@ def _row_key(row, index=0):
     return keys[index] if len(keys) > index else ''
 
 
-def _short_url(url):
-    return str(url).replace(config.SITE_URL, '/')
-
-
-def _add_query_page_diagnostics(diagnostics, query_pages):
-    by_query = {}
-    for row in query_pages:
-        query = _row_key(row, 0)
-        page = _row_key(row, 1)
-        if not query or not page:
-            continue
-        if row.get('impressions', 0) < 20:
-            continue
-        by_query.setdefault(query, []).append(row)
-
-    cannibalized = []
-    for query, rows in by_query.items():
-        rows = [row for row in rows if is_main_domain_page(_row_key(row, 1))]
-        if len(rows) < 2:
-            continue
-        total_clicks = sum(r.get('clicks', 0) for r in rows)
-        total_impressions = sum(r.get('impressions', 0) for r in rows)
-        if total_impressions < 100:
-            continue
-
-        rows_sorted = sorted(rows, key=lambda r: (r.get('clicks', 0), r.get('impressions', 0)), reverse=True)
-        leader = rows_sorted[0]
-        leader_metric = leader.get('clicks', 0) if total_clicks else leader.get('impressions', 0)
-        total_metric = total_clicks if total_clicks else total_impressions
-        leader_share = leader_metric / total_metric if total_metric else 1
-
-        if leader_share < 0.75:
-            cannibalized.append({
-                'query': query,
-                'pages': rows_sorted[:3],
-                'total_clicks': total_clicks,
-                'total_impressions': total_impressions,
-                'leader_share': leader_share,
-            })
-
-    cannibalized.sort(key=lambda x: (x['total_clicks'], x['total_impressions']), reverse=True)
-    if not cannibalized:
-        return
-
-    detail = "这些关键词的点击/展示分散在多个页面，建议确认主排名页，避免内容互相抢排名：\n"
-    for item in cannibalized[:5]:
-        detail += f"\n    - {item['query']} | clicks {item['total_clicks']} | impressions {item['total_impressions']:,} | main share {item['leader_share']:.0%}"
-        for page_row in item['pages']:
-            detail += (
-                f"\n      · {_short_url(_row_key(page_row, 1))}"
-                f" | clicks {page_row.get('clicks', 0)}"
-                f" | impressions {page_row.get('impressions', 0):,}"
-                f" | pos {page_row.get('position', 0):.1f}"
-            )
-
-    diagnostics.append({
-        'severity': 'medium',
-        'category': '关键词页面分流',
-        'message': f'{len(cannibalized)} 个关键词可能存在页面内耗/意图分散',
-        'detail': detail,
-        'owner': 'SEO + 内容团队',
-        'actions': [
-            '为每个关键词指定唯一主页面，并把重复页面合并、canonical 或改成补充长尾意图',
-            '把分流页面的内链锚文本统一指向主页面，减少页面之间互抢排名',
-            '检查主页面标题、H1、首屏内容是否覆盖该关键词的主要搜索意图',
-        ],
-        'expected': '减少页面内耗后，主页面排名和 CTR 通常比新增内容更快见效。',
-    })
-
-
 def _add_country_device_diagnostics(diagnostics, country_devices):
     target_market_config = getattr(config, 'CORE_COUNTRIES', ['usa', 'deu', 'jpn', 'nor', 'gbr', 'fra', 'ita', 'esp', 'nld'])
     if isinstance(target_market_config, str):
@@ -196,13 +126,11 @@ def run_diagnostics(data):
     pages_prev = data.get('pages_prev', [])
     devices = data.get('devices', [])
     countries = data.get('countries', [])
-    query_pages = data.get('query_pages', [])
     country_devices = data.get('country_devices', [])
     search_appearance = data.get('search_appearance', [])
 
     prev_q_map = {r['keys'][0]: r for r in queries_prev}
     prev_p_map = {r['keys'][0]: r for r in pages_prev}
-    _add_query_page_diagnostics(diagnostics, query_pages)
     _add_country_device_diagnostics(diagnostics, country_devices)
     _add_search_appearance_diagnostics(diagnostics, search_appearance)
 

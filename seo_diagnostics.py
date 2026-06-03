@@ -8,138 +8,13 @@ SEO 深度诊断模块 v5
 - 预期效果
 """
 
-from urllib.parse import urlparse, urlunparse
-
 import config
-from seo_ops import classify_page_type, is_main_domain_page, is_target_keyword, target_ctr_for_position
+from seo_ops import is_main_domain_page, is_target_keyword, target_ctr_for_position
 
 
 def _row_key(row, index=0):
     keys = row.get('keys', [])
     return keys[index] if len(keys) > index else ''
-
-
-def _canonical_main_url(url):
-    if not url or not is_main_domain_page(url):
-        return ""
-    parsed = urlparse(str(url))
-    site_host = urlparse(config.SITE_URL).netloc.lower().removeprefix("www.")
-    page_host = parsed.netloc.lower().removeprefix("www.")
-    if site_host and page_host != site_host:
-        return ""
-    path = parsed.path or "/"
-    if path != "/":
-        path = path.rstrip("/")
-    return urlunparse((parsed.scheme, parsed.netloc, path, "", "", ""))
-
-
-def _short_url(url):
-    return str(url).replace(config.SITE_URL, '/')
-
-
-def _page_type_priority(url):
-    priority = {
-        "Product": 1,
-        "Collection": 2,
-        "Blog": 3,
-    }
-    return priority.get(classify_page_type(url), 99)
-
-
-def _add_query_page_diagnostics(diagnostics, query_pages):
-    by_query_page = {}
-    for row in query_pages:
-        query = _row_key(row, 0)
-        raw_page = _row_key(row, 1)
-        page = _canonical_main_url(raw_page)
-        if not query or not page:
-            continue
-        page_type = classify_page_type(page)
-        if page_type not in {"Product", "Collection", "Blog"}:
-            continue
-        if row.get('impressions', 0) < 20:
-            continue
-
-        key = (query, page)
-        bucket = by_query_page.setdefault(key, {
-            'keys': [query, page],
-            'clicks': 0,
-            'impressions': 0,
-            'position_weight': 0.0,
-            'page_type': page_type,
-        })
-        impressions = row.get('impressions', 0)
-        bucket['clicks'] += row.get('clicks', 0)
-        bucket['impressions'] += impressions
-        bucket['position_weight'] += row.get('position', 0) * impressions
-
-    by_query = {}
-    for row in by_query_page.values():
-        impressions = row['impressions']
-        row['position'] = row['position_weight'] / impressions if impressions else 0
-        row['ctr'] = row['clicks'] / impressions if impressions else 0
-        by_query.setdefault(_row_key(row, 0), []).append(row)
-
-    cannibalized = []
-    for query, rows in by_query.items():
-        if len(rows) < 2:
-            continue
-        total_clicks = sum(r.get('clicks', 0) for r in rows)
-        total_impressions = sum(r.get('impressions', 0) for r in rows)
-        if total_impressions < 100:
-            continue
-
-        rows_sorted = sorted(
-            rows,
-            key=lambda r: (
-                _page_type_priority(_row_key(r, 1)),
-                -r.get('clicks', 0),
-                -r.get('impressions', 0),
-            ),
-        )
-        leader = max(rows, key=lambda r: (r.get('clicks', 0), r.get('impressions', 0)))
-        leader_metric = leader.get('clicks', 0) if total_clicks else leader.get('impressions', 0)
-        total_metric = total_clicks if total_clicks else total_impressions
-        leader_share = leader_metric / total_metric if total_metric else 1
-
-        if leader_share < 0.75:
-            cannibalized.append({
-                'query': query,
-                'pages': rows_sorted[:3],
-                'total_clicks': total_clicks,
-                'total_impressions': total_impressions,
-                'leader_share': leader_share,
-            })
-
-    cannibalized.sort(key=lambda x: (x['total_clicks'], x['total_impressions']), reverse=True)
-    if not cannibalized:
-        return
-
-    detail = "已合并 UTM/variant 等参数并仅保留主域名 Product / Collection / Blog 页面；以下关键词仍可能存在主排名页不清晰：\n"
-    for item in cannibalized[:5]:
-        detail += f"\n    - {item['query']} | clicks {item['total_clicks']} | impressions {item['total_impressions']:,} | main share {item['leader_share']:.0%}"
-        for page_row in item['pages']:
-            page = _row_key(page_row, 1)
-            detail += (
-                f"\n      · [{page_row.get('page_type')}] {_short_url(page)}"
-                f" | clicks {page_row.get('clicks', 0)}"
-                f" | impressions {page_row.get('impressions', 0):,}"
-                f" | pos {page_row.get('position', 0):.1f}"
-            )
-
-    diagnostics.append({
-        'severity': 'medium',
-        'category': '关键词页面分流',
-        'message': f'{len(cannibalized)} 个关键词在规范页面之间存在流量分散',
-        'detail': detail,
-        'owner': 'SEO + 内容团队',
-        'actions': [
-            '为每个关键词指定唯一主排名页，优先保留产品页/集合页/博客页中最匹配搜索意图的页面',
-            '把其他页面的内链锚文本统一指向主页面，必要时增加 canonical 或调整内容角度',
-            '检查主页面标题、H1、首屏内容是否覆盖该关键词的主要搜索意图',
-        ],
-        'expected': '清理参数页和杂 URL 后，剩余分流项更适合作为 canonical、内链和内容合并任务。',
-    })
 
 
 def _add_country_device_diagnostics(diagnostics, country_devices):
@@ -251,13 +126,11 @@ def run_diagnostics(data):
     pages_prev = data.get('pages_prev', [])
     devices = data.get('devices', [])
     countries = data.get('countries', [])
-    query_pages = data.get('query_pages', [])
     country_devices = data.get('country_devices', [])
     search_appearance = data.get('search_appearance', [])
 
     prev_q_map = {r['keys'][0]: r for r in queries_prev}
     prev_p_map = {r['keys'][0]: r for r in pages_prev}
-    _add_query_page_diagnostics(diagnostics, query_pages)
     _add_country_device_diagnostics(diagnostics, country_devices)
     _add_search_appearance_diagnostics(diagnostics, search_appearance)
 

@@ -7,7 +7,7 @@ the local computer is off. The GitHub Actions workflow in
 ## Schedule
 
 - Weekly report: Sunday 12:00 Asia/Shanghai.
-- Monthly report: last day of the month at 09:00 Asia/Shanghai.
+- Monthly report: day 3 of each month at 09:00 Asia/Shanghai, covering the previous calendar month.
 - Manual run: Actions -> GSC report -> Run workflow.
 
 ## Required GitHub secrets
@@ -39,6 +39,10 @@ Optional repository variables:
 - `BITABLE_TOP_QUERIES`, default `100`
 - `BITABLE_TOP_PAGES`, default `100`
 - `SEO_OPPORTUNITY_LIMIT`, default `12`
+- `TARGET_KEYWORD_LIMIT`, default `20`
+- `TARGET_KEYWORD_TERMS`, comma-separated target keyword themes
+- `EXCLUDED_TARGET_KEYWORDS`, comma-separated non-target phrases to suppress
+- `EXCLUDED_EXACT_KEYWORDS`, comma-separated broad exact keywords to suppress
 - `BRAND_TERMS`, comma-separated brand query rules
 - `BRAND_PRODUCT_TERMS`, comma-separated product/model words inside brand queries
 - `CORE_COUNTRIES`, comma-separated ISO country codes for priority markets

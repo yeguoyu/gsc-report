@@ -137,8 +137,9 @@ def get_date_range(report_type):
         end = today - timedelta(days=delay)
         start = end - timedelta(days=6)
     elif report_type == 'monthly':
-        end = today - timedelta(days=delay)
-        start = end - timedelta(days=29)
+        first_this_month = datetime(today.year, today.month, 1)
+        end = first_this_month - timedelta(days=1)
+        start = datetime(end.year, end.month, 1)
     else:
         raise ValueError(f"未知报告类型: {report_type}")
 

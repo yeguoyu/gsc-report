@@ -117,6 +117,27 @@ CORE_COUNTRIES = _env_list("CORE_COUNTRIES", [
     "hun",
 ])
 SEO_OPPORTUNITY_LIMIT = _env_int("SEO_OPPORTUNITY_LIMIT", 12)
+TARGET_KEYWORD_LIMIT = _env_int("TARGET_KEYWORD_LIMIT", 20)
+TARGET_KEYWORD_TERMS = _env_list("TARGET_KEYWORD_TERMS", [
+    "thermal camera",
+    "thermal imaging camera",
+    "thermal imager",
+    "thermal monocular",
+    "thermal binocular",
+    "thermal binoculars",
+    "birdwatching binoculars",
+    "bird watching binoculars",
+])
+EXCLUDED_TARGET_KEYWORDS = _env_list("EXCLUDED_TARGET_KEYWORDS", [
+    "night vision camera for car",
+    "infrared camera for car",
+    "infrared car",
+])
+EXCLUDED_EXACT_KEYWORDS = _env_list("EXCLUDED_EXACT_KEYWORDS", [
+    "thermal",
+    "car",
+    "infrared",
+])
 
 NEW_KW_MIN_CLICKS = _env_int("NEW_KW_MIN_CLICKS", 3)
 LOST_KW_MIN_CLICKS = _env_int("LOST_KW_MIN_CLICKS", 3)

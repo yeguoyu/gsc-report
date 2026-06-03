@@ -69,6 +69,62 @@ DEFAULT_CORE_COUNTRIES = [
     "hun",
 ]
 
+DEFAULT_TARGET_KEYWORD_TERMS = [
+    "thermal camera",
+    "thermal imaging camera",
+    "thermal imager",
+    "thermal monocular",
+    "thermal binocular",
+    "thermal binoculars",
+    "birdwatching binoculars",
+    "bird watching binoculars",
+]
+
+DEFAULT_EXCLUDED_TARGET_KEYWORD_TERMS = [
+    "night vision camera for car",
+    "infrared camera for car",
+    "infrared car",
+]
+
+DEFAULT_EXCLUDED_EXACT_KEYWORDS = [
+    "thermal",
+    "car",
+    "infrared",
+]
+
+LOCALE_PREFIXES = {
+    "ar", "bg", "cs", "da", "de", "el", "en", "es", "et", "fi", "fr", "he",
+    "hr", "hu", "id", "it", "ja", "ko", "lt", "lv", "ms", "nl", "no", "pl",
+    "pt", "ro", "ru", "sk", "sl", "sv", "th", "tr", "uk", "vi", "zh",
+    "zh-cn", "zh-tw",
+}
+
+FOCUS_PRODUCT_GROUPS = [
+    {
+        "topic": "thermal camera",
+        "products": [
+            {"name": "Thor", "terms": ["thor"], "priority": True},
+            {"name": "P1", "terms": ["p1"], "priority": True},
+            {"name": "P3", "terms": ["p3"], "priority": True},
+            {"name": "P4", "terms": ["p4"], "priority": False},
+        ],
+    },
+    {
+        "topic": "thermal monocular",
+        "products": [
+            {"name": "DV2", "terms": ["dv2"], "priority": False},
+            {"name": "T2 Max", "terms": ["t2-max", "t2 max", "t2max"], "priority": False},
+        ],
+    },
+    {
+        "topic": "night vision camera for car",
+        "products": [
+            {"name": "NV300 Max", "terms": ["nv300-max", "nv300 max", "nv300max"], "priority": False},
+            {"name": "NV300", "terms": ["nv300"], "exclude_terms": ["max"], "priority": False},
+        ],
+    },
+]
+
 PAGE_TYPE_RULES = [
     ("/products/", "Product"),
     ("/collections/", "Collection"),
@@ -113,6 +169,18 @@ def get_core_countries():
     return {code.lower() for code in _terms_from_config("CORE_COUNTRIES", DEFAULT_CORE_COUNTRIES)}
 
 
+def get_target_keyword_terms():
+    return _terms_from_config("TARGET_KEYWORD_TERMS", DEFAULT_TARGET_KEYWORD_TERMS)
+
+
+def get_excluded_target_keyword_terms():
+    return _terms_from_config("EXCLUDED_TARGET_KEYWORDS", DEFAULT_EXCLUDED_TARGET_KEYWORD_TERMS)
+
+
+def get_excluded_exact_keywords():
+    return {term.lower() for term in _terms_from_config("EXCLUDED_EXACT_KEYWORDS", DEFAULT_EXCLUDED_EXACT_KEYWORDS)}
+
+
 def is_brand_query(query):
     q = _norm(query)
     return any(_norm(term) in q for term in get_brand_terms())
@@ -131,6 +199,25 @@ def classify_keyword(query):
     if is_brand_query(query):
         return "Brand"
     return "Non-brand"
+
+
+def is_target_keyword(query):
+    text = str(query or "").strip().lower()
+    q = _norm(text)
+    if not q or text in get_excluded_exact_keywords():
+        return False
+    if any(_norm(term) in q for term in get_excluded_target_keyword_terms()):
+        return False
+    return any(_norm(term) in q for term in get_target_keyword_terms())
+
+
+def is_main_domain_page(url):
+    parsed = urlparse(str(url))
+    path = parsed.path or "/"
+    parts = [part.lower() for part in path.split("/") if part]
+    if not parts:
+        return True
+    return parts[0] not in LOCALE_PREFIXES
 
 
 def classify_page_type(url):
@@ -240,6 +327,46 @@ def build_core_country_summary(countries):
     return result
 
 
+def build_target_keyword_summary(queries, limit=20):
+    rows = [row for row in queries if is_target_keyword(_key(row, 0))]
+    return sorted(rows, key=lambda row: row.get("impressions", 0), reverse=True)[:limit]
+
+
+def build_focus_product_pages(pages):
+    result = []
+    product_pages = [
+        row for row in pages
+        if is_main_domain_page(_key(row, 0)) and classify_page_type(_key(row, 0)) == "Product"
+    ]
+    for group in FOCUS_PRODUCT_GROUPS:
+        for product in group["products"]:
+            terms = [_norm(term) for term in product["terms"]]
+            exclude_terms = [_norm(term) for term in product.get("exclude_terms", [])]
+            matches = [
+                row for row in product_pages
+                if any(term in _norm(_key(row, 0)) for term in terms)
+                and not any(term in _norm(_key(row, 0)) for term in exclude_terms)
+            ]
+            best = sorted(
+                matches,
+                key=lambda row: (row.get("clicks", 0), row.get("impressions", 0)),
+                reverse=True,
+            )[0] if matches else None
+            result.append({
+                "topic": group["topic"],
+                "product": product["name"],
+                "priority": product.get("priority", False),
+                "url": _key(best, 0) if best else "",
+                "short_url": _short_url(_key(best, 0)) if best else "",
+                "clicks": int(best.get("clicks", 0)) if best else 0,
+                "impressions": int(best.get("impressions", 0)) if best else 0,
+                "ctr": float(best.get("ctr", 0)) if best else 0,
+                "position": float(best.get("position", 0)) if best else 0,
+                "found": bool(best),
+            })
+    return result
+
+
 def build_opportunities(data, limit=12):
     opportunities = []
     query_pages = data.get("query_pages", [])
@@ -252,10 +379,9 @@ def build_opportunities(data, limit=12):
         impressions = row.get("impressions", 0)
         ctr = row.get("ctr", 0)
         position = row.get("position", 99)
-        segment = classify_keyword(query)
         page_type = classify_page_type(url)
 
-        if impressions >= 50 and ctr < 0.02 and position <= 20:
+        if is_target_keyword(query) and impressions >= 50 and ctr < 0.02 and position <= 20:
             op = _make_opportunity(
                 "Low CTR",
                 row,
@@ -267,18 +393,6 @@ def build_opportunities(data, limit=12):
             )
             opportunities.append(op)
             seen.add(("low_ctr", query, url))
-
-        if segment == "Non-brand" and 5 <= position <= 20 and impressions >= 30:
-            op = _make_opportunity(
-                "Ranking Push",
-                row,
-                query=query,
-                url=url,
-                reason="Non-brand query already ranks on page 1-2",
-                action="Strengthen the target page with deeper content, internal links, and product proof.",
-                page_type=page_type,
-            )
-            opportunities.append(op)
 
         if page_type == "Product" and impressions >= 50 and ctr < 0.03 and position <= 15:
             op = _make_opportunity(
@@ -326,12 +440,16 @@ def build_seo_ops_summary(data):
     pages = data.get("pages", [])
     countries = data.get("countries", [])
     opportunities = build_opportunities(data, limit=getattr(config, "SEO_OPPORTUNITY_LIMIT", 12))
+    target_keyword_limit = getattr(config, "TARGET_KEYWORD_LIMIT", 20)
 
     return {
         "brand": build_brand_summary(queries),
         "page_types": build_page_type_summary(pages),
         "core_countries": build_core_country_summary(countries),
         "opportunities": opportunities,
+        "target_keywords": build_target_keyword_summary(queries, limit=target_keyword_limit),
+        "focus_products": build_focus_product_pages(pages),
         "brand_terms": get_brand_terms(),
+        "target_keyword_terms": get_target_keyword_terms(),
         "core_country_codes": sorted(get_core_countries()),
     }

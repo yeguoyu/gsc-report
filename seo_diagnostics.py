@@ -9,6 +9,7 @@ SEO 深度诊断模块 v5
 """
 
 import config
+from seo_ops import is_main_domain_page, is_target_keyword
 
 
 def _row_key(row, index=0):
@@ -33,6 +34,7 @@ def _add_query_page_diagnostics(diagnostics, query_pages):
 
     cannibalized = []
     for query, rows in by_query.items():
+        rows = [row for row in rows if is_main_domain_page(_row_key(row, 1))]
         if len(rows) < 2:
             continue
         total_clicks = sum(r.get('clicks', 0) for r in rows)
@@ -86,7 +88,11 @@ def _add_query_page_diagnostics(diagnostics, query_pages):
 
 
 def _add_country_device_diagnostics(diagnostics, country_devices):
-    target_markets = {'usa', 'can', 'gbr', 'deu', 'fra', 'ita', 'esp', 'nld'}
+    target_market_config = getattr(config, 'CORE_COUNTRIES', ['usa', 'deu', 'jpn', 'nor', 'gbr', 'fra', 'ita', 'esp', 'nld'])
+    if isinstance(target_market_config, str):
+        target_markets = {part.strip().lower() for part in target_market_config.split(',') if part.strip()}
+    else:
+        target_markets = {part.lower() for part in target_market_config}
     by_country = {}
     for row in country_devices:
         country = _row_key(row, 0).lower()
@@ -295,7 +301,7 @@ def run_diagnostics(data):
         imp = q.get('impressions', 0)
         ctr = q.get('ctr', 0)
         pos = q.get('position', 0)
-        if imp >= 50 and ctr < 0.02 and pos <= 20:
+        if imp >= 50 and ctr < 0.02 and pos <= 20 and is_target_keyword(q['keys'][0]):
             wasted = max(0, int(imp * 0.05) - q.get('clicks', 0))
             wasted_keywords.append({
                 'keyword': q['keys'][0], 'impressions': imp, 'clicks': q.get('clicks', 0),
@@ -305,18 +311,18 @@ def run_diagnostics(data):
 
     if wasted_keywords:
         total_wasted = sum(k['wasted_potential'] for k in wasted_keywords)
-        detail = f"如果将这些词的 CTR 提升到 5%，预计可多获得 {total_wasted:,} 次点击\n"
-        for k in wasted_keywords[:8]:
+        detail = f"如果将这些目标关键词/长尾词的 CTR 提升到 5%，预计可多获得 {total_wasted:,} 次点击\n"
+        for k in wasted_keywords[:getattr(config, 'TARGET_KEYWORD_LIMIT', 20)]:
             detail += f"\n    • 「{k['keyword']}」展示 {k['impressions']:,} | 点击 {k['clicks']} | CTR {k['ctr']:.1f}% | 排名 {k['position']:.1f} | 浪费 ≈{k['wasted_potential']} 次点击"
 
         diagnostics.append({
             'severity': 'high',
             'category': '高展示低点击',
-            'message': f'{len(wasted_keywords)} 个关键词 CTR<2%，预估浪费 {total_wasted:,} 次潜在点击',
+            'message': f'{len(wasted_keywords)} 个目标关键词/长尾词 CTR<2%，预估浪费 {total_wasted:,} 次潜在点击',
             'detail': detail,
             'owner': '内容团队（改标题描述）+ 技术团队（加结构化数据）',
             'actions': [
-                f'【优先级最高】逐一优化以上 {min(len(wasted_keywords), 8)} 个词对应页面的 Title Tag：\n      - 前 30 字必须包含核心关键词\n      - 加入数字和年份（如 "2026最新"、"Top 10"）\n      - 加入利益点（如 "免费"、"对比评测"、"一文搞懂"）',
+                f'【优先级最高】逐一优化以上 {min(len(wasted_keywords), getattr(config, "TARGET_KEYWORD_LIMIT", 20))} 个目标词对应页面的 Title Tag：\n      - 前 30 字必须包含核心关键词\n      - 加入数字和年份（如 "2026最新"、"Top 10"）\n      - 加入利益点（如 "免费"、"对比评测"、"一文搞懂"）',
                 '【优先级最高】优化 Meta Description（150-160 字符）：\n      - 第一句话直接回答搜索意图\n      - 中间突出差异化卖点\n      - 末尾加 CTA（如 "立即查看"）',
                 '【本周】Google 搜索这些关键词，截图 SERP 前 5 名标题写法做对比分析',
                 '【本周】技术团队添加 FAQ Schema / HowTo Schema 结构化数据争取富媒体搜索结果',
@@ -339,6 +345,7 @@ def run_diagnostics(data):
                 'clicks': q.get('clicks', 0), 'potential_gain': gain,
             })
     potential_kws.sort(key=lambda x: x['potential_gain'], reverse=True)
+    potential_kws = []
 
     if potential_kws:
         total_potential = sum(k['potential_gain'] for k in potential_kws)
@@ -368,6 +375,8 @@ def run_diagnostics(data):
     if pages:
         avg_ctr = totals.get('ctr', 0)
         for p in pages:
+            if not is_main_domain_page(p['keys'][0]):
+                continue
             if p.get('impressions', 0) >= 50 and p.get('ctr', 0) < avg_ctr * 0.5 and p.get('position', 99) <= 20:
                 short = p['keys'][0].replace(config.SITE_URL, '/')
                 underperform.append({

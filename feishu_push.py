@@ -84,6 +84,22 @@ def _route_summary(diagnostics):
     return tech_count, ops_count
 
 
+def _build_focus_product_md(data):
+    rows = data.get("seo_ops", {}).get("focus_products", [])
+    if not rows:
+        return ""
+    lines = ["**重点产品页表现**"]
+    for row in rows:
+        marker = "🔴 优先推广" if row.get("priority") else "常规"
+        page = row.get("short_url") or "未匹配到产品页"
+        lines.append(
+            f"- **{row.get('topic', '')} / {row.get('product', '')}**：{marker}｜"
+            f"{page}｜点击 {row.get('clicks', 0):,}｜展示 {row.get('impressions', 0):,}｜"
+            f"CTR {row.get('ctr', 0) * 100:.1f}%｜排名 {row.get('position', 0):.1f}"
+        )
+    return "\n".join(lines)
+
+
 def build_full_card(data):
     type_map = {
         'daily': ('📊 GSC 日报', 'blue'),
@@ -236,6 +252,10 @@ def build_diagnostics_card(data):
     )
     elements.append({"tag": "div", "text": {"tag": "lark_md", "content": summary}})
     elements.append({"tag": "hr"})
+    focus_product_md = _build_focus_product_md(data)
+    if focus_product_md:
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": focus_product_md}})
+        elements.append({"tag": "hr"})
 
     for idx, d in enumerate(diagnostics):
         sev = d.get('severity', 'low')

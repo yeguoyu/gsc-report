@@ -76,6 +76,8 @@ def _build_ops_html(data):
     page_types = summary.get('page_types', {})
     core = summary.get('core_countries', {})
     opportunities = summary.get('opportunities', [])
+    target_keywords = summary.get('target_keywords', [])
+    focus_products = summary.get('focus_products', [])
 
     brand_clicks = (
         _summary_metric(brand, 'Brand', 'clicks')
@@ -120,6 +122,37 @@ def _build_ops_html(data):
         </tr>'''
     if not page_type_rows:
         page_type_rows = '<tr><td colspan="6" class="ops-empty">No page type data.</td></tr>'
+
+    target_keyword_rows = ""
+    for i, row in enumerate(target_keywords, 1):
+        query = row.get('keys', [''])[0] if row.get('keys') else ''
+        target_keyword_rows += f'''<tr>
+            <td class="num">{i}</td>
+            <td class="kw">{_esc(query)}</td>
+            <td class="val">{row.get('clicks', 0):,}</td>
+            <td class="val">{row.get('impressions', 0):,}</td>
+            <td class="val">{_fmt_pct(row.get('ctr', 0))}</td>
+            <td class="val">{row.get('position', 0):.1f}</td>
+        </tr>'''
+    if not target_keyword_rows:
+        target_keyword_rows = '<tr><td colspan="6" class="ops-empty">No target keyword data.</td></tr>'
+
+    focus_product_rows = ""
+    for item in focus_products:
+        priority = '<span class="badge down">Priority</span>' if item.get('priority') else '<span class="badge neutral">Normal</span>'
+        page = item.get('short_url') or '-'
+        focus_product_rows += f'''<tr>
+            <td class="kw">{_esc(item.get('topic', ''))}</td>
+            <td class="kw">{_esc(item.get('product', ''))}</td>
+            <td>{priority}</td>
+            <td class="pg" title="{_esc(item.get('url', ''))}">{_esc(page)}</td>
+            <td class="val">{item.get('clicks', 0):,}</td>
+            <td class="val">{item.get('impressions', 0):,}</td>
+            <td class="val">{_fmt_pct(item.get('ctr', 0))}</td>
+            <td class="val">{item.get('position', 0):.1f}</td>
+        </tr>'''
+    if not focus_product_rows:
+        focus_product_rows = '<tr><td colspan="8" class="ops-empty">No focus product data.</td></tr>'
 
     core_rows = ""
     for row in core.get('top_core', []):
@@ -210,6 +243,31 @@ def _build_ops_html(data):
     </div>
 
     <div class="card">
+        <div class="card-title"><span class="icon">KW</span> Target Keyword Top 20</div>
+        <div class="tbl-wrap">
+        <table>
+            <thead><tr>
+                <th>#</th><th>Query</th><th>Clicks</th><th>Impr.</th><th>CTR</th><th>Pos.</th>
+            </tr></thead>
+            <tbody>{target_keyword_rows}</tbody>
+        </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">PDP</span> Focus Product Pages</div>
+        <div class="tbl-wrap">
+        <table>
+            <thead><tr>
+                <th>Topic</th><th>Product</th><th>Push</th><th>Page</th>
+                <th>Clicks</th><th>Impr.</th><th>CTR</th><th>Pos.</th>
+            </tr></thead>
+            <tbody>{focus_product_rows}</tbody>
+        </table>
+        </div>
+    </div>
+
+    <div class="card">
         <div class="card-title"><span class="icon">OPS</span> SEO Opportunity Pool</div>
         <div class="tbl-wrap">
         <table>
@@ -279,7 +337,11 @@ def _build_full_html(data):
     total_country_clicks = sum(c.get('clicks', 0) for c in data.get('countries', []))
     
     # 核心市场：北美(US, CA) + 欧洲(GB, DE, FR, IT, ES, NL)
-    target_markets = {'usa', 'can', 'gbr', 'deu', 'fra', 'ita', 'esp', 'nld'}
+    target_market_config = getattr(config, 'CORE_COUNTRIES', ['usa', 'deu', 'jpn', 'nor', 'gbr', 'fra', 'ita', 'esp', 'nld'])
+    if isinstance(target_market_config, str):
+        target_markets = {part.strip().lower() for part in target_market_config.split(',') if part.strip()}
+    else:
+        target_markets = {part.lower() for part in target_market_config}
     target_clicks = sum(c.get('clicks', 0) for c in data.get('countries', []) if c['keys'][0].lower() in target_markets)
     target_pct = (target_clicks / total_country_clicks * 100) if total_country_clicks > 0 else 0
     

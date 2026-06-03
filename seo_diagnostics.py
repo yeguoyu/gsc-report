@@ -9,7 +9,7 @@ SEO 深度诊断模块 v5
 """
 
 import config
-from seo_ops import is_main_domain_page, is_target_keyword
+from seo_ops import is_main_domain_page, is_target_keyword, target_ctr_for_position
 
 
 def _row_key(row, index=0):
@@ -302,23 +302,25 @@ def run_diagnostics(data):
         ctr = q.get('ctr', 0)
         pos = q.get('position', 0)
         if imp >= 50 and ctr < 0.02 and pos <= 20 and is_target_keyword(q['keys'][0]):
-            wasted = max(0, int(imp * 0.05) - q.get('clicks', 0))
+            target_ctr = target_ctr_for_position(pos)
+            wasted = max(0, int(imp * target_ctr) - q.get('clicks', 0))
             wasted_keywords.append({
                 'keyword': q['keys'][0], 'impressions': imp, 'clicks': q.get('clicks', 0),
-                'ctr': ctr * 100, 'position': pos, 'wasted_potential': wasted,
+                'ctr': ctr * 100, 'position': pos, 'target_ctr': target_ctr * 100,
+                'wasted_potential': wasted,
             })
     wasted_keywords.sort(key=lambda x: x['wasted_potential'], reverse=True)
 
     if wasted_keywords:
         total_wasted = sum(k['wasted_potential'] for k in wasted_keywords)
-        detail = f"如果将这些目标关键词/长尾词的 CTR 提升到 5%，预计可多获得 {total_wasted:,} 次点击\n"
+        detail = f"按当前排名段目标 CTR 预估，这些目标关键词/长尾词预计可多获得 {total_wasted:,} 次点击\n"
         for k in wasted_keywords[:getattr(config, 'TARGET_KEYWORD_LIMIT', 20)]:
-            detail += f"\n    • 「{k['keyword']}」展示 {k['impressions']:,} | 点击 {k['clicks']} | CTR {k['ctr']:.1f}% | 排名 {k['position']:.1f} | 浪费 ≈{k['wasted_potential']} 次点击"
+            detail += f"\n    • 「{k['keyword']}」展示 {k['impressions']:,} | 点击 {k['clicks']} | CTR {k['ctr']:.1f}% | 目标CTR {k['target_ctr']:.1f}% | 排名 {k['position']:.1f} | 机会 ≈{k['wasted_potential']} 次点击"
 
         diagnostics.append({
             'severity': 'high',
             'category': '高展示低点击',
-            'message': f'{len(wasted_keywords)} 个目标关键词/长尾词 CTR<2%，预估浪费 {total_wasted:,} 次潜在点击',
+            'message': f'{len(wasted_keywords)} 个目标关键词/长尾词 CTR<2%，预估机会 {total_wasted:,} 次潜在点击',
             'detail': detail,
             'owner': '内容团队（改标题描述）+ 技术团队（加结构化数据）',
             'actions': [
@@ -328,7 +330,7 @@ def run_diagnostics(data):
                 '【本周】技术团队添加 FAQ Schema / HowTo Schema 结构化数据争取富媒体搜索结果',
                 '【下周】在 GSC 检查这些页面的实际显示标题（Google 可能重写了 Title）',
             ],
-            'expected': f'Title 优化通常 1-3 周见效，CTR 从 2% 提升到 5% 意味着点击量翻 2.5 倍',
+            'expected': f'Title 优化通常 1-3 周见效；机会点击按排名段目标 CTR 估算，不再固定套用 5%',
         })
 
     # ═══════════════════════════════════════════

@@ -1,5 +1,6 @@
 """SEO operations analysis helpers for GSC reports."""
 
+import re
 from urllib.parse import urlparse
 
 import config
@@ -71,25 +72,103 @@ DEFAULT_CORE_COUNTRIES = [
 
 DEFAULT_TARGET_KEYWORD_TERMS = [
     "thermal camera",
+    "thermal camera for android",
+    "thermal camera for iphone",
+    "android thermal camera",
+    "iphone thermal camera",
+    "phone thermal camera",
+    "smartphone thermal camera",
     "thermal imaging camera",
     "thermal imager",
     "thermal monocular",
+    "thermal monoculars",
+    "thermal scope",
+    "thermal telescope",
     "thermal binocular",
     "thermal binoculars",
     "birdwatching binoculars",
     "bird watching binoculars",
+    "birding binoculars",
+    "binoculars for bird watching",
+    "best binoculars for bird watching",
+    "birdwatching monocular",
+    "bird watching monocular",
+    "birding monocular",
 ]
 
 DEFAULT_EXCLUDED_TARGET_KEYWORD_TERMS = [
     "night vision camera for car",
     "infrared camera for car",
     "infrared car",
+    "car",
+    "automotive",
+    "vehicle",
+    "dashcam",
+    "dashboard camera",
+    "cctv",
+    "security camera",
+    "surveillance",
+    "backup camera",
+    "rear view camera",
 ]
 
 DEFAULT_EXCLUDED_EXACT_KEYWORDS = [
     "thermal",
     "car",
     "infrared",
+    "camera",
+]
+
+THERMAL_CAMERA_GROUP_TERMS = [
+    "thermal camera",
+    "thermal camera for android",
+    "thermal camera for iphone",
+    "android thermal camera",
+    "iphone thermal camera",
+    "phone thermal camera",
+    "smartphone thermal camera",
+    "thermal imaging camera",
+    "thermal imager",
+    "infrared thermal camera",
+]
+
+THERMAL_MONOCULAR_GROUP_TERMS = [
+    "thermal monocular",
+    "thermal monoculars",
+    "thermal scope",
+    "thermal telescope",
+]
+
+BIRDWATCHING_GROUP_TERMS = [
+    "birdwatching binoculars",
+    "bird watching binoculars",
+    "birding binoculars",
+    "binoculars for bird watching",
+    "best binoculars for bird watching",
+    "birdwatching monocular",
+    "bird watching monocular",
+    "birding monocular",
+]
+
+LONG_TAIL_MARKERS = [
+    "how to",
+    "best",
+    "for",
+    "vs",
+    "versus",
+    "does",
+    "can",
+    "what",
+    "which",
+    "android",
+    "iphone",
+]
+
+TARGET_KEYWORD_GROUP_ORDER = [
+    "Thermal Camera",
+    "Thermal Monocular",
+    "Birdwatching",
+    "Long-tail Intent",
 ]
 
 LOCALE_PREFIXES = {
@@ -150,6 +229,19 @@ def _norm(text):
     return "".join(ch for ch in str(text).lower() if ch.isalnum())
 
 
+def _tokens(text):
+    return re.findall(r"[a-z0-9]+", str(text or "").lower())
+
+
+def _contains_query_term(text, term):
+    clean_term = str(term or "").strip().lower()
+    if not clean_term:
+        return False
+    if len(clean_term) <= 3 and clean_term.isalnum():
+        return clean_term in _tokens(text)
+    return _norm(clean_term) in _norm(text)
+
+
 def _terms_from_config(name, defaults):
     value = getattr(config, name, defaults)
     if isinstance(value, str):
@@ -203,12 +295,34 @@ def classify_keyword(query):
 
 def is_target_keyword(query):
     text = str(query or "").strip().lower()
-    q = _norm(text)
-    if not q or text in get_excluded_exact_keywords():
+    if not _norm(text) or text in get_excluded_exact_keywords():
         return False
-    if any(_norm(term) in q for term in get_excluded_target_keyword_terms()):
+    if any(_contains_query_term(text, term) for term in get_excluded_target_keyword_terms()):
         return False
-    return any(_norm(term) in q for term in get_target_keyword_terms())
+    return any(_contains_query_term(text, term) for term in get_target_keyword_terms())
+
+
+def _is_long_tail_query(query):
+    text = str(query or "").strip().lower()
+    words = _tokens(text)
+    if len(words) >= 5:
+        return True
+    return any(_contains_query_term(text, marker) for marker in LONG_TAIL_MARKERS)
+
+
+def classify_target_keyword_group(query):
+    text = str(query or "").strip().lower()
+    if not is_target_keyword(text):
+        return None
+    if _is_long_tail_query(text):
+        return "Long-tail Intent"
+    if any(_contains_query_term(text, term) for term in THERMAL_CAMERA_GROUP_TERMS):
+        return "Thermal Camera"
+    if any(_contains_query_term(text, term) for term in THERMAL_MONOCULAR_GROUP_TERMS):
+        return "Thermal Monocular"
+    if any(_contains_query_term(text, term) for term in BIRDWATCHING_GROUP_TERMS):
+        return "Birdwatching"
+    return "Long-tail Intent"
 
 
 def is_main_domain_page(url):
@@ -262,6 +376,10 @@ def _aggregate(rows, key_fn):
 
 
 def _target_ctr(position):
+    try:
+        position = float(position)
+    except (TypeError, ValueError):
+        position = 99
     if position <= 3:
         return 0.18
     if position <= 10:
@@ -269,6 +387,10 @@ def _target_ctr(position):
     if position <= 20:
         return 0.04
     return 0.02
+
+
+def target_ctr_for_position(position):
+    return _target_ctr(position)
 
 
 def _short_url(url):
@@ -330,6 +452,67 @@ def build_core_country_summary(countries):
 def build_target_keyword_summary(queries, limit=20):
     rows = [row for row in queries if is_target_keyword(_key(row, 0))]
     return sorted(rows, key=lambda row: row.get("impressions", 0), reverse=True)[:limit]
+
+
+def best_landing_page_for_query(query_pages, query):
+    target = str(query or "").strip().lower()
+    matches = [
+        row for row in query_pages
+        if str(_key(row, 0)).strip().lower() == target and _key(row, 1)
+    ]
+    main_matches = [row for row in matches if is_main_domain_page(_key(row, 1))]
+    pool = main_matches or matches
+    if not pool:
+        return None
+    return sorted(
+        pool,
+        key=lambda row: (row.get("clicks", 0), row.get("impressions", 0)),
+        reverse=True,
+    )[0]
+
+
+def build_target_keyword_groups(data, limit=10):
+    buckets = {group: [] for group in TARGET_KEYWORD_GROUP_ORDER}
+    query_pages = data.get("query_pages", [])
+
+    for row in data.get("queries", []):
+        query = _key(row, 0)
+        group = classify_target_keyword_group(query)
+        if not group:
+            continue
+
+        page_row = best_landing_page_for_query(query_pages, query)
+        url = _key(page_row, 1) if page_row else ""
+        try:
+            position = float(row.get("position", 99) or 99)
+        except (TypeError, ValueError):
+            position = 99
+        target_ctr = target_ctr_for_position(position)
+        buckets.setdefault(group, []).append({
+            "group": group,
+            "query": query,
+            "url": url,
+            "short_url": _short_url(url) if url else "",
+            "clicks": int(row.get("clicks", 0)),
+            "impressions": int(row.get("impressions", 0)),
+            "ctr": float(row.get("ctr", 0)),
+            "position": position,
+            "target_ctr": target_ctr,
+            "opportunity_clicks": _opportunity_score(row, target_ctr),
+            "page_clicks": int(page_row.get("clicks", 0)) if page_row else 0,
+            "page_impressions": int(page_row.get("impressions", 0)) if page_row else 0,
+        })
+
+    grouped = []
+    for group in TARGET_KEYWORD_GROUP_ORDER:
+        rows = sorted(
+            buckets.get(group, []),
+            key=lambda item: (item["impressions"], item["opportunity_clicks"]),
+            reverse=True,
+        )[:limit]
+        if rows:
+            grouped.append({"group": group, "rows": rows})
+    return grouped
 
 
 def build_focus_product_pages(pages):
@@ -441,6 +624,7 @@ def build_seo_ops_summary(data):
     countries = data.get("countries", [])
     opportunities = build_opportunities(data, limit=getattr(config, "SEO_OPPORTUNITY_LIMIT", 12))
     target_keyword_limit = getattr(config, "TARGET_KEYWORD_LIMIT", 20)
+    target_group_limit = getattr(config, "TARGET_KEYWORD_GROUP_LIMIT", 10)
 
     return {
         "brand": build_brand_summary(queries),
@@ -448,6 +632,7 @@ def build_seo_ops_summary(data):
         "core_countries": build_core_country_summary(countries),
         "opportunities": opportunities,
         "target_keywords": build_target_keyword_summary(queries, limit=target_keyword_limit),
+        "target_keyword_groups": build_target_keyword_groups(data, limit=target_group_limit),
         "focus_products": build_focus_product_pages(pages),
         "brand_terms": get_brand_terms(),
         "target_keyword_terms": get_target_keyword_terms(),

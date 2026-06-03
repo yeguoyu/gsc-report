@@ -40,6 +40,7 @@ Optional repository variables:
 - `BITABLE_TOP_PAGES`, default `100`
 - `SEO_OPPORTUNITY_LIMIT`, default `12`
 - `TARGET_KEYWORD_LIMIT`, default `20`
+- `TARGET_KEYWORD_GROUP_LIMIT`, default `10` per target keyword category
 - `TARGET_KEYWORD_TERMS`, comma-separated target keyword themes
 - `EXCLUDED_TARGET_KEYWORDS`, comma-separated non-target phrases to suppress
 - `EXCLUDED_EXACT_KEYWORDS`, comma-separated broad exact keywords to suppress

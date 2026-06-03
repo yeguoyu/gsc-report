@@ -76,7 +76,7 @@ def _build_ops_html(data):
     page_types = summary.get('page_types', {})
     core = summary.get('core_countries', {})
     opportunities = summary.get('opportunities', [])
-    target_keywords = summary.get('target_keywords', [])
+    target_keyword_groups = summary.get('target_keyword_groups', [])
     focus_products = summary.get('focus_products', [])
 
     brand_clicks = (
@@ -123,19 +123,45 @@ def _build_ops_html(data):
     if not page_type_rows:
         page_type_rows = '<tr><td colspan="6" class="ops-empty">No page type data.</td></tr>'
 
-    target_keyword_rows = ""
-    for i, row in enumerate(target_keywords, 1):
-        query = row.get('keys', [''])[0] if row.get('keys') else ''
-        target_keyword_rows += f'''<tr>
-            <td class="num">{i}</td>
-            <td class="kw">{_esc(query)}</td>
-            <td class="val">{row.get('clicks', 0):,}</td>
-            <td class="val">{row.get('impressions', 0):,}</td>
-            <td class="val">{_fmt_pct(row.get('ctr', 0))}</td>
-            <td class="val">{row.get('position', 0):.1f}</td>
-        </tr>'''
-    if not target_keyword_rows:
-        target_keyword_rows = '<tr><td colspan="6" class="ops-empty">No target keyword data.</td></tr>'
+    target_group_cards = ""
+    for group in target_keyword_groups:
+        target_keyword_rows = ""
+        for i, row in enumerate(group.get('rows', []), 1):
+            page = row.get('short_url') or '-'
+            target_keyword_rows += f'''<tr>
+                <td class="num">{i}</td>
+                <td class="kw">{_esc(row.get('query', ''))}</td>
+                <td class="pg" title="{_esc(row.get('url', ''))}">{_esc(page)}</td>
+                <td class="val">{row.get('clicks', 0):,}</td>
+                <td class="val">{row.get('impressions', 0):,}</td>
+                <td class="val">{_fmt_pct(row.get('ctr', 0))}</td>
+                <td class="val">{row.get('position', 0):.1f}</td>
+                <td class="val">{_fmt_pct(row.get('target_ctr', 0))}</td>
+                <td class="val">{row.get('opportunity_clicks', 0):,}</td>
+            </tr>'''
+        if not target_keyword_rows:
+            target_keyword_rows = '<tr><td colspan="9" class="ops-empty">No target keyword data.</td></tr>'
+        target_group_cards += f'''
+    <div class="card">
+        <div class="card-title"><span class="icon">KW</span> Target Keyword Top 10 - {_esc(group.get('group', ''))}</div>
+        <div class="tbl-wrap">
+        <table>
+            <thead><tr>
+                <th>#</th><th>Query</th><th>Landing Page</th><th>Clicks</th><th>Impr.</th>
+                <th>CTR</th><th>Pos.</th><th>Target CTR</th><th>Opp. Clicks</th>
+            </tr></thead>
+            <tbody>{target_keyword_rows}</tbody>
+        </table>
+        </div>
+    </div>
+'''
+    if not target_group_cards:
+        target_group_cards = '''
+    <div class="card">
+        <div class="card-title"><span class="icon">KW</span> Target Keyword Top 10</div>
+        <div class="ops-empty">No target keyword data matched the current category filters.</div>
+    </div>
+'''
 
     focus_product_rows = ""
     for item in focus_products:
@@ -242,17 +268,7 @@ def _build_ops_html(data):
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-title"><span class="icon">KW</span> Target Keyword Top 20</div>
-        <div class="tbl-wrap">
-        <table>
-            <thead><tr>
-                <th>#</th><th>Query</th><th>Clicks</th><th>Impr.</th><th>CTR</th><th>Pos.</th>
-            </tr></thead>
-            <tbody>{target_keyword_rows}</tbody>
-        </table>
-        </div>
-    </div>
+    {target_group_cards}
 
     <div class="card">
         <div class="card-title"><span class="icon">PDP</span> Focus Product Pages</div>

@@ -118,25 +118,52 @@ CORE_COUNTRIES = _env_list("CORE_COUNTRIES", [
 ])
 SEO_OPPORTUNITY_LIMIT = _env_int("SEO_OPPORTUNITY_LIMIT", 12)
 TARGET_KEYWORD_LIMIT = _env_int("TARGET_KEYWORD_LIMIT", 20)
+TARGET_KEYWORD_GROUP_LIMIT = _env_int("TARGET_KEYWORD_GROUP_LIMIT", 10)
 TARGET_KEYWORD_TERMS = _env_list("TARGET_KEYWORD_TERMS", [
     "thermal camera",
+    "thermal camera for android",
+    "thermal camera for iphone",
+    "android thermal camera",
+    "iphone thermal camera",
+    "phone thermal camera",
+    "smartphone thermal camera",
     "thermal imaging camera",
     "thermal imager",
     "thermal monocular",
+    "thermal monoculars",
+    "thermal scope",
+    "thermal telescope",
     "thermal binocular",
     "thermal binoculars",
     "birdwatching binoculars",
     "bird watching binoculars",
+    "birding binoculars",
+    "binoculars for bird watching",
+    "best binoculars for bird watching",
+    "birdwatching monocular",
+    "bird watching monocular",
+    "birding monocular",
 ])
 EXCLUDED_TARGET_KEYWORDS = _env_list("EXCLUDED_TARGET_KEYWORDS", [
     "night vision camera for car",
     "infrared camera for car",
     "infrared car",
+    "car",
+    "automotive",
+    "vehicle",
+    "dashcam",
+    "dashboard camera",
+    "cctv",
+    "security camera",
+    "surveillance",
+    "backup camera",
+    "rear view camera",
 ])
 EXCLUDED_EXACT_KEYWORDS = _env_list("EXCLUDED_EXACT_KEYWORDS", [
     "thermal",
     "car",
     "infrared",
+    "camera",
 ])
 
 NEW_KW_MIN_CLICKS = _env_int("NEW_KW_MIN_CLICKS", 3)

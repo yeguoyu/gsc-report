@@ -89,9 +89,9 @@ def upload_and_send(file_path):
         print(f"[ERROR] 文件不存在: {file_path}")
         return False
 
-    chat_id = getattr(config, 'FEISHU_CHAT_ID', '')
+    chat_id = getattr(config, 'FEISHU_FILE_CHAT_ID', '') or getattr(config, 'FEISHU_CHAT_ID', '')
     if not chat_id:
-        print("[WARN] 未配置 FEISHU_CHAT_ID，跳过文件发送")
+        print("[WARN] 未配置 FEISHU_FILE_CHAT_ID/FEISHU_CHAT_ID，跳过文件发送")
         return False
 
     token = get_tenant_access_token()

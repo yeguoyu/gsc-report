@@ -73,6 +73,7 @@ jobs:
           FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
           FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
           FEISHU_CHAT_ID: ${{ secrets.FEISHU_CHAT_ID }}
+          FEISHU_FILE_CHAT_ID: ${{ secrets.FEISHU_FILE_CHAT_ID || secrets.FEISHU_CHAT_ID }}
           FEISHU_TECH_AT_ID: ${{ vars.FEISHU_TECH_AT_ID || '' }}
           FEISHU_TECH_AT_NAME: ${{ vars.FEISHU_TECH_AT_NAME || '叶国钰' }}
           FEISHU_OPS_AT_ID: ${{ vars.FEISHU_OPS_AT_ID || '' }}

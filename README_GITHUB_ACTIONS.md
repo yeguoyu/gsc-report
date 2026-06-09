@@ -18,6 +18,7 @@ Add these in GitHub repo -> Settings -> Secrets and variables -> Actions:
 - `FEISHU_APP_ID`
 - `FEISHU_APP_SECRET`
 - `FEISHU_CHAT_ID`
+- `FEISHU_FILE_CHAT_ID` (optional; defaults to `FEISHU_CHAT_ID`)
 - `BITABLE_APP_TOKEN`
 - `GSC_CLIENT_SECRET_JSON`
 - `GSC_TOKEN_JSON`
@@ -26,6 +27,8 @@ Optional:
 
 - `GA4_PROPERTY_ID`
 - `GA4_TOKEN_JSON`
+
+`FEISHU_WEBHOOK` controls the report cards. HTML files are sent by the Feishu app API to `FEISHU_FILE_CHAT_ID` (or the legacy `FEISHU_CHAT_ID` fallback). Set `FEISHU_FILE_CHAT_ID` to the same group chat id as the webhook group if the card and HTML file should appear in one group.
 
 Optional repository variables:
 

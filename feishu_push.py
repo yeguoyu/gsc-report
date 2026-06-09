@@ -88,6 +88,12 @@ def _build_focus_product_md(data):
     rows = data.get("seo_ops", {}).get("focus_products", [])
     if not rows:
         return ""
+    rows = [
+        row for row in rows
+        if row.get("found") or row.get("clicks", 0) > 0 or row.get("impressions", 0) > 0
+    ]
+    if not rows:
+        return ""
     lines = ["**重点产品页表现**"]
     for row in rows:
         marker = "🔴 优先推广" if row.get("priority") else "常规"
@@ -98,6 +104,68 @@ def _build_focus_product_md(data):
             f"CTR {row.get('ctr', 0) * 100:.1f}%｜排名 {row.get('position', 0):.1f}"
         )
     return "\n".join(lines)
+
+
+def _build_opportunity_md(data, limit=6):
+    rows = data.get("seo_ops", {}).get("opportunities", [])
+    if not rows:
+        return ""
+    lines = ["**SEO 机会池 Top 项**"]
+    for row in rows[:limit]:
+        query = row.get("query") or "-"
+        page = row.get("short_url") or "-"
+        lines.append(
+            f"- **{row.get('type', '')}**｜{query}｜{page}｜"
+            f"展示 {row.get('impressions', 0):,}｜CTR {row.get('ctr', 0) * 100:.1f}%｜"
+            f"排名 {row.get('position', 0):.1f}｜机会 {row.get('opportunity_clicks', 0):,}"
+        )
+    return "\n".join(lines)
+
+
+def _build_target_keyword_md(data, per_group=3):
+    groups = data.get("seo_ops", {}).get("target_keyword_groups", [])
+    if not groups:
+        return ""
+    lines = ["**目标关键词分组 Top 项**"]
+    for group in groups:
+        rows = group.get("rows", [])[:per_group]
+        if not rows:
+            continue
+        lines.append(f"- **{group.get('group', '')}**")
+        for row in rows:
+            page = row.get("short_url") or "-"
+            lines.append(
+                f"  · {row.get('query', '')}｜{page}｜点击 {row.get('clicks', 0):,}｜"
+                f"展示 {row.get('impressions', 0):,}｜CTR {row.get('ctr', 0) * 100:.1f}%｜"
+                f"排名 {row.get('position', 0):.1f}"
+            )
+    return "\n".join(lines) if len(lines) > 1 else ""
+
+
+def _build_fetch_status_md(data):
+    summary = data.get("fetch_summary", {})
+    totals = data.get("totals", {})
+    rows_total = (
+        summary.get("queries_rows", 0)
+        + summary.get("pages_rows", 0)
+        + summary.get("query_page_rows", 0)
+    )
+    notes = []
+    if data.get("totals_source") == "queries_fallback":
+        notes.append("本期按日期汇总为空，已自动改用关键词汇总计算核心指标。")
+    if totals.get("impressions", 0) == 0 or rows_total == 0:
+        notes.append("本期 GSC 返回 0 数据，请检查 SITE_URL、GSC 授权、数据延迟天数或 Search Type。")
+    if not notes:
+        return ""
+    return (
+        "**数据抓取状态**\n"
+        + "\n".join(f"- {note}" for note in notes)
+        + "\n"
+        + f"- search_type: {summary.get('search_type', '-')}"
+        + f"｜关键词行 {summary.get('queries_rows', 0):,}"
+        + f"｜页面行 {summary.get('pages_rows', 0):,}"
+        + f"｜关键词-页面行 {summary.get('query_page_rows', 0):,}"
+    )
 
 
 def build_full_card(data):
@@ -150,6 +218,11 @@ def build_full_card(data):
     kpi_text = _build_kpi_text(totals, prev)
     elements.append({"tag": "div", "text": {"tag": "lark_md", "content": kpi_text}})
     elements.append({"tag": "hr"})
+
+    fetch_status_md = _build_fetch_status_md(data)
+    if fetch_status_md:
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": fetch_status_md}})
+        elements.append({"tag": "hr"})
 
     idx_summary = data.get('index_issues_summary', {})
     if idx_summary and sum(idx_summary.values()) > 0:
@@ -232,7 +305,11 @@ def _build_kpi_text(totals, prev):
 
 def build_diagnostics_card(data):
     diagnostics = data.get('diagnostics', [])
-    if not diagnostics:
+    focus_product_md = _build_focus_product_md(data)
+    opportunity_md = _build_opportunity_md(data)
+    target_keyword_md = _build_target_keyword_md(data)
+    fetch_status_md = _build_fetch_status_md(data)
+    if not any([diagnostics, focus_product_md, opportunity_md, target_keyword_md, fetch_status_md]):
         return None
     type_zh = {'daily': '日报', 'weekly': '周报', 'monthly': '月报'}
     rtype = type_zh.get(data['report_type'], '报告')
@@ -252,10 +329,29 @@ def build_diagnostics_card(data):
     )
     elements.append({"tag": "div", "text": {"tag": "lark_md", "content": summary}})
     elements.append({"tag": "hr"})
-    focus_product_md = _build_focus_product_md(data)
+
+    if fetch_status_md:
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": fetch_status_md}})
+        elements.append({"tag": "hr"})
+
     if focus_product_md:
         elements.append({"tag": "div", "text": {"tag": "lark_md", "content": focus_product_md}})
         elements.append({"tag": "hr"})
+    if opportunity_md:
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": opportunity_md}})
+        elements.append({"tag": "hr"})
+    if target_keyword_md:
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": target_keyword_md}})
+        elements.append({"tag": "hr"})
+
+    if not diagnostics:
+        elements.append({
+            "tag": "div",
+            "text": {
+                "tag": "lark_md",
+                "content": "**自动诊断**\n本期暂无命中阈值的问题项；请优先查看上面的重点产品页、SEO 机会池和目标关键词。"
+            }
+        })
 
     for idx, d in enumerate(diagnostics):
         sev = d.get('severity', 'low')
@@ -292,7 +388,7 @@ def build_diagnostics_card(data):
     return {
         "config": {"wide_screen_mode": True},
         "header": {
-            "title": {"tag": "plain_text", "content": f"💡 GSC {rtype} | SEO 深度诊断"},
+            "title": {"tag": "plain_text", "content": f"💡 GSC {rtype} | SEO 明细与诊断"},
             "template": "orange"
         },
         "elements": elements

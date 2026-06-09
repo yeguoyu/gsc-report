@@ -18,7 +18,10 @@ REQUIRED_ENV = [
     "FEISHU_APP_ID",
     "FEISHU_APP_SECRET",
     "BITABLE_APP_TOKEN",
-    "FEISHU_CHAT_ID",
+]
+
+REQUIRED_ANY_ENV = [
+    ("FEISHU_CHAT_ID", "FEISHU_FILE_CHAT_ID"),
 ]
 
 
@@ -57,6 +60,11 @@ def _write_json_secret(raw_name, b64_name, path, required):
 
 def main():
     missing = [name for name in REQUIRED_ENV if not os.getenv(name)]
+    missing.extend(
+        " or ".join(names)
+        for names in REQUIRED_ANY_ENV
+        if not any(os.getenv(name) for name in names)
+    )
     if missing:
         print("[ERROR] Missing required environment variables: " + ", ".join(missing))
         return 1

@@ -45,6 +45,16 @@ def run(report_type):
     print("[STEP 2/5] 计算汇总指标...")
     data['totals'] = calc_totals(data.get('daily_trend', []))
     data['prev_totals'] = calc_totals(data.get('daily_trend_prev', []))
+    data['totals_source'] = 'daily_trend'
+
+    if data['totals'].get('impressions', 0) == 0 and data.get('queries'):
+        print("[WARN] 日期汇总为空，改用关键词汇总计算本期核心指标")
+        data['totals'] = calc_totals(data.get('queries', []))
+        data['totals_source'] = 'queries_fallback'
+
+    if data['prev_totals'].get('impressions', 0) == 0 and data.get('queries_prev'):
+        print("[WARN] 对比日期汇总为空，改用关键词汇总计算对比核心指标")
+        data['prev_totals'] = calc_totals(data.get('queries_prev', []))
 
     if 'index_issues' in data:
         data['index_issues_summary'] = {k: len(v) for k, v in data['index_issues'].items()}
